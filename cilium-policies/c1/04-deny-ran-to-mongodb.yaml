@@ -1,0 +1,25 @@
+# 04-deny-ran-to-mongodb.yaml
+# Condicion C1 - Microsegmentacion L3/L4
+# Protege la base de datos de suscriptores (MongoDB, usada por UDM, UDR
+# y NRF) restringiendo el acceso al puerto 27017 exclusivamente a pods
+# del namespace 5g-cp. Bloquea el acceso directo desde el segmento RAN,
+# que en la Fase de reconocimiento del vector A1 resulto ser el activo
+# de mayor interes para el atacante (40.9% de los intentos totales).
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: deny-ran-to-mongodb
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+      toPorts:
+        - ports:
+            - port: "27017"
+              protocol: TCP

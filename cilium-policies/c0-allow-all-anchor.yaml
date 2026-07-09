@@ -1,0 +1,51 @@
+# c0-allow-all-anchor.yaml
+# Condicion C0 (baseline sin controles ZTA).
+#
+# Cilium 1.15.4 en modo KubeProxyReplacement Strict requiere al menos una
+# politica activa por namespace para mantener la sincronizacion de
+# endpoints eBPF entre nodos. Sin ninguna politica presente, el sync
+# inter-nodo del dataplane se degrada. Por ello C0 no significa "cero
+# politicas de Cilium en el cluster", sino "cero politicas de
+# segmentacion, identidad o autorizacion": se mantiene una politica ancla
+# permisiva (allow-all) por namespace, que no restringe ningun trafico y
+# preserva el comportamiento equivalente a un despliegue sin Cilium
+# Network Policies.
+#
+# Se despliega una copia de este manifiesto en cada uno de los tres
+# namespaces del testbed: 5g-cp, 5g-ran, 5g-up.
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: c0-allow-all-anchor
+  namespace: 5g-cp
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: c0-allow-all-anchor
+  namespace: 5g-ran
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: c0-allow-all-anchor
+  namespace: 5g-up
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}

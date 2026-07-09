@@ -1,0 +1,100 @@
+# open5gs-values.yaml
+# Archivo de valores para el chart towards5gs-helm utilizado en el
+# despliegue de Open5GS v2.7 sobre k3s v1.28.5.
+# PLMN de prueba: MCC 999 / MNC 70 (rango reservado para testbeds 3GPP).
+#
+# NOTA: las politicas de red nativas del chart (networkPolicy.enabled)
+# se mantienen deshabilitadas de forma deliberada en todas las
+# condiciones; el enforcement de segmentacion, identidad y autorizacion
+# se implementa integramente mediante CiliumNetworkPolicy (ver
+# ../cilium-policies/), no mediante el mecanismo nativo de Kubernetes
+# NetworkPolicy que expone el chart.
+
+networkPolicy:
+  enabled: false
+
+global:
+  mcc: "999"
+  mnc: "70"
+
+hss:
+  enabled: false
+mme:
+  enabled: false
+pcrf:
+  enabled: false
+sgwc:
+  enabled: false
+sgwu:
+  enabled: false
+
+nrf:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 7777
+
+amf:
+  replicaCount: 1
+  config:
+    guamiList:
+      - plmn_id:
+          mcc: "999"
+          mnc: "70"
+        amf_id:
+          region: 2
+          set: 1
+    taiList:
+      - plmn_id:
+          mcc: "999"
+          mnc: "70"
+        tac: [1]
+    plmnList:
+      - plmn_id:
+          mcc: "999"
+          mnc: "70"
+        s_nssai:
+          - sst: 1
+            sd: "0x111111"
+
+smf:
+  replicaCount: 1
+
+nssf:
+  replicaCount: 1
+  config:
+    nsiList:
+      - uri: ""
+        sst: 1
+        sd: "0x111111"
+
+pcf:
+  replicaCount: 1
+
+udm:
+  replicaCount: 1
+
+udr:
+  replicaCount: 1
+
+ausf:
+  replicaCount: 1
+
+bsf:
+  replicaCount: 1
+
+scp:
+  replicaCount: 1
+
+webui:
+  replicaCount: 1
+  ingress:
+    enabled: false
+
+mongodb:
+  # Volumen emptyDir en el testbed: los datos de suscriptores se
+  # pierden ante cada reinicio del pod y deben reinsertarse. Limitacion
+  # conocida y documentada, sin impacto en las metricas de seguridad
+  # evaluadas.
+  persistence:
+    enabled: false

@@ -1,0 +1,78 @@
+# 01-allow-sbi-rbac-c3.yaml
+# Condicion C3 - Autorizacion L7 por rol
+#
+# Reemplaza a allow-sbi-legit-nfs-only (C2). Anade una segunda dimension
+# de control sobre el NRF: ademas de la identidad de workload
+# (cib46-nf-type=core-nf), verifica el ROL del pod solicitante.
+#
+# Regla 1: el Service Communication Proxy (SCP) es la unica NF con rol
+#          scp-writer y puede ejecutar todas las operaciones CRUD sobre
+#          la SBI del NRF.
+# Regla 2: cualquier otra NF con identidad legitima (core-nf) pero sin
+#          el rol SCP solo puede ejecutar operaciones de lectura
+#          (discovery). El proxy Envoy de Cilium actua como Policy
+#          Enforcement Point L7, devolviendo HTTP 403 Forbidden ante
+#          metodos no autorizados, POST-handshake TCP (a diferencia del
+#          bloqueo de C2, que ocurre en el SYN).
+#
+# Este control cierra el vector A2'' (abuso de privilegios con
+# identidad legitima, pero sin rol autorizado) y valida HE3 en su
+# segunda variante.
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-sbi-rbac-c3
+  namespace: 5g-cp
+  annotations:
+    description: >-
+      C3 ZTA: autorizacion granular L7 por rol. Solo el SCP
+      (app.kubernetes.io/name=scp) puede ejecutar operaciones de
+      escritura sobre el NRF. Las demas NF con identidad legitima solo
+      pueden leer (discovery). Cierra el vector A2''.
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: nrf
+  ingress:
+    # Regla 1: SCP (broker legitimo) -- todas las operaciones
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            cib46-nf-type: core-nf
+            app.kubernetes.io/name: scp
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/nnrf-nfm/v1/.*"
+              - method: "GET"
+                path: "/nnrf-disc/v1/.*"
+              - method: "PUT"
+                path: "/nnrf-nfm/v1/nf-instances/.*"
+              - method: "PATCH"
+                path: "/nnrf-nfm/v1/nf-instances/.*"
+              - method: "DELETE"
+                path: "/nnrf-nfm/v1/nf-instances/.*"
+              - method: "POST"
+                path: "/nnrf-nfm/v1/subscriptions.*"
+              - method: "DELETE"
+                path: "/nnrf-nfm/v1/subscriptions/.*"
+    # Regla 2: NF consumidoras (core-nf, no SCP) -- solo discovery
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            cib46-nf-type: core-nf
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/nnrf-nfm/v1/.*"
+              - method: "GET"
+                path: "/nnrf-disc/v1/.*"

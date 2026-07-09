@@ -1,0 +1,56 @@
+# 01-allow-sbi-legit-nfs-only.yaml
+# Condicion C2 - Identidad de workload eBPF
+#
+# Reemplaza a allow-sbi-intra-core (C1). Restringe el acceso al NRF
+# unicamente a pods que posean el label de identidad de workload
+# cib46-nf-type=core-nf, ademas de restringir los metodos HTTP
+# permitidos sobre las rutas de la SBI (3GPP TS 29.510, API
+# Nnrf_NFManagement). Un pod sin ese label es descartado en el SYN por
+# el dataplane eBPF, antes de que el NRF procese la solicitud.
+#
+# Este es el control que valida HE3: la segmentacion L3/L4 de C1 no
+# distingue un pod impostor dentro del mismo namespace 5g-cp; la
+# identidad de workload si lo hace.
+#
+# Requisito previo: aplicar el label cib46-nf-type=core-nf a los
+# Deployments de las NF legitimas (ver 02-patch-identity-labels.sh).
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-sbi-legit-nfs-only
+  namespace: 5g-cp
+  annotations:
+    description: >-
+      C2 ZTA: solo pods con identidad de NF legitima
+      (cib46-nf-type=core-nf) pueden acceder al NRF. El impostor sin ese
+      label es bloqueado. Implementa HE3.
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: nrf
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            cib46-nf-type: core-nf
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/nnrf-nfm/v1/.*"
+              - method: "GET"
+                path: "/nnrf-disc/v1/.*"
+              - method: "PUT"
+                path: "/nnrf-nfm/v1/nf-instances/.*"
+              - method: "DELETE"
+                path: "/nnrf-nfm/v1/nf-instances/.*"
+              - method: "PATCH"
+                path: "/nnrf-nfm/v1/nf-instances/.*"
+              - method: "POST"
+                path: "/nnrf-nfm/v1/subscriptions.*"
+              - method: "DELETE"
+                path: "/nnrf-nfm/v1/subscriptions/.*"

@@ -1,0 +1,26 @@
+# 02-allow-sbi-intra-core.yaml
+# Condicion C1 - Microsegmentacion L3/L4
+# Permite el trafico SBI (puerto 7777, HTTP/2) entre todas las funciones
+# de red del propio namespace 5g-cp, sin verificar identidad de workload.
+# Esta politica es la que en C2 se reemplaza por allow-sbi-legit-nfs-only
+# al introducir la dimension de identidad.
+#
+# Nota de hallazgo H8: el endpointSelector debe quedar vacio ({}) y no
+# con un selector de label de namespace, para que la politica proteja a
+# todas las NF del namespace 5g-cp como destino.
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-sbi-intra-core
+  namespace: 5g-cp
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP

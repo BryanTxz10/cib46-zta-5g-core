@@ -1,0 +1,24 @@
+# deploy-attacker-ue-lateral.yaml
+# Pod atacante externo, desplegado en el namespace 5g-ran, sin
+# credenciales del core. Modela un componente del plano de acceso radio
+# comprometido (p. ej. un sensor industrial de galeria subterranea con
+# firmware alterado en la cadena de suministro). Utilizado en los
+# vectores A1 (movimiento lateral) y A2 (SBI spoofing externo).
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: attacker-ue-lateral
+  namespace: 5g-ran
+  labels:
+    app: attacker-ue-lateral
+spec:
+  containers:
+    - name: attacker
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c", "sleep infinity"]
+      securityContext:
+        capabilities:
+          add: ["NET_RAW", "NET_ADMIN"]
+  restartPolicy: Never

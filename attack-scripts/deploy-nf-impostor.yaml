@@ -1,0 +1,28 @@
+# deploy-nf-impostor.yaml
+# Pod atacante interno sin identidad, desplegado en el namespace 5g-cp
+# DELIBERADAMENTE sin el label de identidad cib46-nf-type=core-nf.
+# Modela un pod del plano de control comprometido mediante una imagen
+# de contenedor alterada en el pipeline CI/CD. Utilizado en el vector
+# A2' (SBI spoofing interno sin identidad).
+#
+# En C1 este pod PASA (la segmentacion no verifica identidad).
+# En C2 y C3 es BLOQUEADO en el SYN por ausencia del label.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nf-impostor
+  namespace: 5g-cp
+  labels:
+    app: nf-impostor
+    # DELIBERADAMENTE sin cib46-nf-type: core-nf
+spec:
+  containers:
+    - name: attacker
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c", "sleep infinity"]
+      securityContext:
+        capabilities:
+          add: ["NET_RAW", "NET_ADMIN"]
+  restartPolicy: Never

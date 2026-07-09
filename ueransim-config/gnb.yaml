@@ -1,0 +1,28 @@
+# gnb.yaml
+# Configuracion del gNB simulado con UERANSIM v3.2.6.
+# PLMN de prueba: MCC 999 / MNC 70. Interfaz N2 sobre la red Multus
+# 10.10.0.0/24 (worker2, namespace 5g-ran).
+
+mcc: '999'
+mnc: '70'
+
+nci: '0x000000010'
+idLength: 32
+tac: 1
+
+linkIp: 10.10.0.20
+ngapIp: 10.10.0.20
+gtpIp: 10.10.0.20
+
+# Lista de AMF a los que este gNB se conecta.
+# amfConfigs.address debe resolver a la IP del pod/servicio AMF dentro
+# del namespace 5g-cp.
+amfConfigs:
+  - address: open5gs-cp-amf-ngap.5g-cp.svc.cluster.local
+    port: 38412
+
+slices:
+  - sst: 1
+    sd: 0x111111
+
+ignoreStreamIds: true

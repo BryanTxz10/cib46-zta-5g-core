@@ -1,0 +1,19 @@
+# 01-deny-ran-to-cp.yaml
+# Condicion C1 - Microsegmentacion L3/L4
+# Default deny: bloquea todo trafico proveniente del namespace 5g-ran
+# hacia el namespace 5g-cp, salvo lo explicitamente permitido por las
+# politicas allow-* de este mismo directorio. Contiene el vector A1
+# (movimiento lateral este-oeste) y el vector A2 (SBI spoofing externo).
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: deny-ran-to-cp
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-ran

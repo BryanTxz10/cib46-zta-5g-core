@@ -1,0 +1,31 @@
+# deploy-nf-compromised-legit.yaml
+# Pod atacante interno CON identidad legitima, desplegado en el
+# namespace 5g-cp CON el label cib46-nf-type=core-nf pero SIN el rol de
+# SCP (app.kubernetes.io/name != scp). Modela una NF legitima
+# comprometida que posee credenciales validas pero intenta ejecutar
+# operaciones fuera de su rol autorizado. Utilizado en el vector A2''
+# (abuso de privilegios con identidad legitima).
+#
+# En C2 este pod PASA (solo se verifica identidad, no rol).
+# En C3 es BLOQUEADO por el proxy Envoy L7 (HTTP 403) al intentar
+# operaciones de escritura, porque no tiene el rol scp-writer.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nf-compromised-legit
+  namespace: 5g-cp
+  labels:
+    app.kubernetes.io/name: nf-compromised-legit
+    cib46-nf-type: core-nf   # identidad legitima -- pasa C2
+    # NO es scp -- bloqueado por rol en C3
+spec:
+  containers:
+    - name: attacker
+      image: nicolaka/netshoot:latest
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c", "sleep infinity"]
+      securityContext:
+        capabilities:
+          add: ["NET_RAW", "NET_ADMIN"]
+  restartPolicy: Never

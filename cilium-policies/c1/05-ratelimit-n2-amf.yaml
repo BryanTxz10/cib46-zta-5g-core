@@ -1,0 +1,28 @@
+# 05-ratelimit-n2-amf.yaml
+# Condicion C1 - Microsegmentacion L3/L4
+# Restringe el origen de las asociaciones SCTP hacia el AMF (puerto
+# 38412) al segmento 5g-ran. Documentada como limitacion tecnica en el
+# capitulo de discusion: Cilium v1.15.4 no implementa rate limiting
+# nativo sobre el protocolo SCTP, por lo que esta politica no logra
+# contener el vector A3 (inundacion N2/SCTP); solo acota el origen del
+# trafico, no su volumen.
+#
+# Nota de hallazgo H9: el campo protocol debe ser SCTP, no TCP.
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ratelimit-n2-amf
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: amf
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-ran
+      toPorts:
+        - ports:
+            - port: "38412"
+              protocol: SCTP

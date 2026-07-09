@@ -1,0 +1,25 @@
+# .gitignore
+
+# Datos crudos de ejecucion (contienen IPs internas del testbed y no
+# aportan valor sin el entorno virtualizado activo)
+*.txt
+!requirements.txt
+
+# Salidas de procesamiento
+*.csv
+*.png
+!**/README.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Kubernetes / kubeconfig local
+kubeconfig
+*.kubeconfig
+
+# Archivos temporales del sistema
+.DS_Store
+*.swp

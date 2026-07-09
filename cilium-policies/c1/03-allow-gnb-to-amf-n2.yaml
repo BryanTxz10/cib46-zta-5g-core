@@ -1,0 +1,24 @@
+# 03-allow-gnb-to-amf-n2.yaml
+# Condicion C1 - Microsegmentacion L3/L4
+# Permite unicamente al gNB legitimo (UERANSIM) del namespace 5g-ran
+# comunicarse con el AMF sobre la interfaz N2 (SCTP/38412). Cualquier
+# otro origen es descartado por la politica deny-ran-to-cp.
+
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-gnb-to-amf-n2
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: amf
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: ueransim-gnb
+            io.kubernetes.pod.namespace: 5g-ran
+      toPorts:
+        - ports:
+            - port: "38412"
+              protocol: SCTP
