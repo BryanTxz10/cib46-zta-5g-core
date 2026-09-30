@@ -1,0 +1,96 @@
+# spire.yaml — despliegue mínimo de SPIRE Server + Agent en el namespace 5g-cp.
+# Las configuraciones se montan desde ConfigMaps creados por 80-spire.sh a
+# partir de spire-config/server.conf y spire-config/agent.conf (fuente de
+# verdad del repo).
+#
+# IMPORTANTE (coherente con spire-config/server.conf): SPIRE se despliega por
+# completitud y trazabilidad (H10/H21). NO ejerce enforcement sobre la SBI de
+# Open5GS 2.7. El enforcement de identidad de C2/C3 lo hace Cilium por labels.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: spire-server, namespace: 5g-cp }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: spire-agent, namespace: 5g-cp }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: spire-server-cr }
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: spire-server-crb }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: spire-server-cr }
+subjects:
+  - kind: ServiceAccount
+    name: spire-server
+    namespace: 5g-cp
+---
+apiVersion: v1
+kind: Service
+metadata: { name: spire-server, namespace: 5g-cp }
+spec:
+  selector: { app: spire-server }
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: spire-server, namespace: 5g-cp }
+spec:
+  replicas: 1
+  serviceName: spire-server
+  selector: { matchLabels: { app: spire-server } }
+  template:
+    metadata: { labels: { app: spire-server } }
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.9.0
+          args: ["-config", "/run/spire/config/server.conf"]
+          ports: [{ containerPort: 8081 }]
+          volumeMounts:
+            - { name: spire-config, mountPath: /run/spire/config, readOnly: true }
+            - { name: spire-data, mountPath: /run/spire/data }
+      volumes:
+        - name: spire-config
+          configMap: { name: spire-server-conf }
+        - name: spire-data
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: spire-agent, namespace: 5g-cp }
+spec:
+  selector: { matchLabels: { app: spire-agent } }
+  template:
+    metadata: { labels: { app: spire-agent } }
+    spec:
+      serviceAccountName: spire-agent
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.9.0
+          args: ["-config", "/run/spire/config/agent.conf"]
+          volumeMounts:
+            - { name: spire-config, mountPath: /run/spire/config, readOnly: true }
+            - { name: spire-agent-socket, mountPath: /run/spire/sockets }
+      volumes:
+        - name: spire-config
+          configMap: { name: spire-agent-conf }
+        - name: spire-agent-socket
+          hostPath: { path: /run/spire/sockets, type: DirectoryOrCreate }
