@@ -10,19 +10,24 @@
 % ======================================================================
 
 @inproceedings{benzaid2025thaaloub,
-  author    = {Benzaid, Chafika and Guerd, Nawal and Rehouma, Nour El Houda and
+  author    = {Benza{\"i}d, Chafika and Guerd, Nawal and Rehouma, Nour El Houda and
                Zeraoulia, Khaled and Taleb, Tarik},
   title     = {A Multi-Layered Zero Trust Microsegmentation Solution for
                Cloud-Native {5G} \& Beyond Networks},
   booktitle = {Proc. IEEE Wireless Communications and Networking Conference (WCNC)},
   address   = {Milan, Italy},
   year      = {2025},
-  doi       = {10.1109/WCNC.2025}, % verificar DOI exacto
-  note      = {Framework THAALOUB. Zenodo: 10.5281/zenodo.14699793.
-               Service Mesh + CNI, intent-based access control. Competidor
-               multinivel con sidecar frente al enfoque sidecarless de CIB46.}
+  doi       = {10.5281/zenodo.14699793}, % Zenodo OA; verificar DOI IEEE (doc 10978671)
+  note      = {Framework THAALOUB (confirmado del texto): Univ. Oulu / USTHB /
+               Ruhr Univ. Bochum. Testbed sobre Open5GS Y OAI con Cilium (CNI) +
+               Istio (service mesh) + SPIFFE/SPIRE (identidad criptografica),
+               intent-based access control. Overhead < 37% CPU / < 24% RAM en 5GC;
+               latencia de NF ~1.38-2.3 ms. Competidor multinivel CON sidecar
+               frente al enfoque sidecarless de CIB46.}
 }
 
+% OJO: pendiente de conseguir el PDF correcto. El archivo subido como Budigiri
+% (arXiv 2608.15518) era en realidad un paper de DeFi (Xiong, Liu, Li) ajeno a 5G.
 @inproceedings{budigiri2021netpol,
   author    = {Budigiri, Gerald and Baumann, Christoph and M{\"u}hlberg, Jan Tobias
                and Truyen, Eddy and Joosen, Wouter},
@@ -34,21 +39,23 @@
   doi       = {10.1109/EuCNC/6GSummit51104.2021.9482526}, % verificar
   note      = {imec-DistriNet KU Leuven + Ericsson Research. NetworkPolicies
                eBPF (Calico/Cilium) reducen 75--99\% la superficie de ataque
-               con overhead despreciable para uRLLC edge. Zenodo: 5776322.}
+               con overhead despreciable para uRLLC edge. Zenodo: 5776322.
+               PDF PENDIENTE (el subido era otro paper).}
 }
 
 @inproceedings{duong2023cilium5gc,
-  author    = {Duong, Binh V. and Kim, Younghan},
+  author    = {Duong, Van-Binh and Kim, Younghan},
   title     = {A Design of Service Mesh Based {5G} Core Network Using {Cilium}},
   booktitle = {Proc. International Conference on Information Networking (ICOIN)},
   year      = {2023},
-  doi       = {10.1109/ICOIN56518.2023.10049044}, % verificar
-  note      = {Antecedente directo de Cilium + SCP en el 5GC. Respalda la nota
-               de validez del SCP como broker (Model D, TS 23.501).}
+  doi       = {10.1109/ICOIN56518.2023.10049044},
+  note      = {Soongsil University, Seul. Confirmado: paper de DISENO/cualitativo
+               (Istio + Cilium para el 5GC), sin evaluacion cuantitativa ni
+               ataques. Antecedente de diseno; respalda el encuadre del SCP.}
 }
 
-@article{cilium2026roidd,
-  author    = {(verificar autores)},
+@article{chomsiri2026roidd,
+  author    = {Chomsiri, Thawatchai and Phunsa, Suwichai},
   title     = {A Decision-Diagram Framework for Conflict Detection in
                Multi-Layer {Cilium} Network Policies},
   journal   = {Journal of Cybersecurity and Privacy (MDPI)},
@@ -58,10 +65,11 @@
   year      = {2026},
   doi       = {10.3390/jcp6040136}, % verificar
   url       = {https://www.mdpi.com/2624-800X/6/4/136},
-  note      = {Formaliza la composición KNP (aditiva) / CNP (deny-wins) /
-               CCNP (cluster-override) y detecta anomalías de shadow y
-               redundancia. Base teórica del hallazgo H30 (shadowing de la
-               política granular por la amplia).}
+  note      = {Mahasarakham University, Tailandia. Confirmado: primera semantica
+               denotacional formal de KNP (aditiva) / CNP (deny-wins) / CCNP
+               (cluster-override); detecta shadow, redundancia y conflicto
+               cross-layer (prec/recall 1.000; Cilium v1.19.5; 0.74-1.95 us).
+               Base formal del hallazgo H30 (shadowing de la granular por la amplia).}
 }
 
 % ======================================================================
@@ -94,6 +102,24 @@
   year      = {2022},
   doi       = {10.1109/TNSM.2022.3157248},
   note      = {Framework vEPC-vSDP (SDP virtualizado). Paradigma SDP/SPA.}
+}
+
+@article{dakic2024cni,
+  author    = {Daki{\'c}, Vedran and Red{\v z}epagi{\'c}, Jasmin and
+               Ba{\v s}i{\'c}, Matej and {\v Z}grabli{\'c}, Luka},
+  title     = {Performance and Latency Efficiency Evaluation of {Kubernetes}
+               Container Network Interfaces for Built-In and Custom Tuned Profiles},
+  journal   = {Electronics (MDPI)},
+  volume    = {13},
+  number    = {19},
+  pages     = {3972},
+  year      = {2024},
+  doi       = {10.3390/electronics13193972},
+  note      = {Algebra University, Zagreb. Benchmark de CNIs (Antrea, Calico,
+               Cilium v1.15.6, Flannel) con Ansible y perfiles tuned, contexto
+               HPC/AI. Cilium es el de MAYOR overhead de CPU (~7%) por DPI L7;
+               Flannel la menor latencia; CNIs anaden +40--90 ms y -40% BW vs
+               fisico. USAR con salvedad: contexto HPC, no SBI de 5G.}
 }
 
 @inproceedings{hasanth2024sidecarless,
