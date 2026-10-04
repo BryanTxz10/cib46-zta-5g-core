@@ -1,0 +1,74 @@
+# kyverno-identity-guard.yaml — Control de admisión que vuelve NO FORJABLE el
+# label de identidad de C2 (punto 2 / §3.2 opción B; cierra RM-05).
+#
+# Regla: en el namespace 5g-cp, SOLO un desplegador autorizado (y los
+# controladores del sistema que crean los pods hijos) pueden crear cargas que
+# lleven el label de identidad `cib46-nf-type=core-nf`. Cualquier otro principal
+# (p. ej. el atacante que hace `kubectl apply` de un pod impostor CON el label)
+# es RECHAZADO en la admisión, antes de arrancar.
+#
+# Requisito: Kyverno instalado (`helm install kyverno kyverno/kyverno -n kyverno`).
+# background: false es obligatorio porque la regla usa request.userInfo.
+#
+# AJUSTA la allowlist a tu clúster:
+#  - Sustituye el SA del desplegador autorizado (quien aplica los Deployments de
+#    Open5GS; p. ej. tu usuario de kubectl o el SA del pipeline).
+#  - Mantén los SA de los controladores (crean los pods hijos de los Deployments).
+#
+# ALCANCE (decláralo en la tesis): este control detiene al adversario que
+# despliega un impostor CON el label siendo un principal distinto del desplegador
+# autorizado (tu A2′/A2‴). NO detiene a un pipeline autorizado ya comprometido
+# (problema de supply-chain → firma de imágenes/Sigstore = trabajo futuro).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: cib46-identity-guard
+  annotations:
+    policies.kyverno.io/title: CIB46 Identity Guard (C2 non-forgeable label)
+    policies.kyverno.io/description: >-
+      Solo principales autorizados pueden crear cargas con el label de identidad
+      de workload cib46-nf-type=core-nf en 5g-cp. Vuelve no forjable la identidad
+      de C2 y habilita el vector de prueba A2‴.
+spec:
+  validationFailureAction: Enforce   # usa Audit primero para observar sin bloquear
+  background: false
+  rules:
+    - name: solo-desplegador-autorizado-pone-label-identidad
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+                - ReplicaSet
+                - StatefulSet
+                - DaemonSet
+                - Job
+              namespaces:
+                - 5g-cp
+      # Solo aplica a cargas que llevan el label de identidad reservado.
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"cib46-nf-type\" || request.object.spec.template.metadata.labels.\"cib46-nf-type\" || '' }}"
+            operator: Equals
+            value: core-nf
+      validate:
+        message: >-
+          El label de identidad 'cib46-nf-type=core-nf' está reservado: solo el
+          desplegador autorizado puede asignarlo en 5g-cp. Solicitud rechazada
+          (vector A2‴ bloqueado en admisión).
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.userInfo.username }}"
+                operator: AllNotIn
+                value:
+                  # --- AJUSTA: desplegador(es) legítimo(s) de las NF de Open5GS ---
+                  - "system:serviceaccount:5g-cp:open5gs-deployer"
+                  # --- Controladores del sistema (crean los pods hijos) ---
+                  - "system:serviceaccount:kube-system:replicaset-controller"
+                  - "system:serviceaccount:kube-system:deployment-controller"
+                  - "system:serviceaccount:kube-system:statefulset-controller"
+                  - "system:serviceaccount:kube-system:daemon-set-controller"
+                  - "system:serviceaccount:kube-system:job-controller"
+                  - "system:serviceaccount:kube-system:generic-garbage-collector"
