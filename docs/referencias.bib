@@ -1,0 +1,215 @@
+% referencias.bib — Referencias clave para el paper CIB46 (ZTA sobre núcleo 5G SA).
+% Generado a partir de la biblioteca del autor (Google Drive) y de búsqueda.
+%
+% NOTA: verifica DOIs, páginas y nombres antes de enviar. Donde no tuve certeza
+% del dato exacto lo marco con "verificar". Las entradas de los 5 trabajos leídos
+% a fondo están confirmadas por su texto; las demás por metadatos de búsqueda.
+
+% ======================================================================
+%  LOS 4 QUE FALTABAN EN LA BIBLIOTECA (incorporados al related work)
+% ======================================================================
+
+@inproceedings{benzaid2025thaaloub,
+  author    = {Benzaid, Chafika and Guerd, Nawal and Rehouma, Nour El Houda and
+               Zeraoulia, Khaled and Taleb, Tarik},
+  title     = {A Multi-Layered Zero Trust Microsegmentation Solution for
+               Cloud-Native {5G} \& Beyond Networks},
+  booktitle = {Proc. IEEE Wireless Communications and Networking Conference (WCNC)},
+  address   = {Milan, Italy},
+  year      = {2025},
+  doi       = {10.1109/WCNC.2025}, % verificar DOI exacto
+  note      = {Framework THAALOUB. Zenodo: 10.5281/zenodo.14699793.
+               Service Mesh + CNI, intent-based access control. Competidor
+               multinivel con sidecar frente al enfoque sidecarless de CIB46.}
+}
+
+@inproceedings{budigiri2021netpol,
+  author    = {Budigiri, Gerald and Baumann, Christoph and M{\"u}hlberg, Jan Tobias
+               and Truyen, Eddy and Joosen, Wouter},
+  title     = {Network Policies in {Kubernetes}: Performance Evaluation and
+               Security Analysis},
+  booktitle = {Proc. Joint European Conference on Networks and Communications
+               \& 6G Summit (EuCNC/6G Summit)},
+  year      = {2021},
+  doi       = {10.1109/EuCNC/6GSummit51104.2021.9482526}, % verificar
+  note      = {imec-DistriNet KU Leuven + Ericsson Research. NetworkPolicies
+               eBPF (Calico/Cilium) reducen 75--99\% la superficie de ataque
+               con overhead despreciable para uRLLC edge. Zenodo: 5776322.}
+}
+
+@inproceedings{duong2023cilium5gc,
+  author    = {Duong, Binh V. and Kim, Younghan},
+  title     = {A Design of Service Mesh Based {5G} Core Network Using {Cilium}},
+  booktitle = {Proc. International Conference on Information Networking (ICOIN)},
+  year      = {2023},
+  doi       = {10.1109/ICOIN56518.2023.10049044}, % verificar
+  note      = {Antecedente directo de Cilium + SCP en el 5GC. Respalda la nota
+               de validez del SCP como broker (Model D, TS 23.501).}
+}
+
+@article{cilium2026roidd,
+  author    = {(verificar autores)},
+  title     = {A Decision-Diagram Framework for Conflict Detection in
+               Multi-Layer {Cilium} Network Policies},
+  journal   = {Journal of Cybersecurity and Privacy (MDPI)},
+  volume    = {6},
+  number    = {4},
+  pages     = {136},
+  year      = {2026},
+  doi       = {10.3390/jcp6040136}, % verificar
+  url       = {https://www.mdpi.com/2624-800X/6/4/136},
+  note      = {Formaliza la composición KNP (aditiva) / CNP (deny-wins) /
+               CCNP (cluster-override) y detecta anomalías de shadow y
+               redundancia. Base teórica del hallazgo H30 (shadowing de la
+               política granular por la amplia).}
+}
+
+% ======================================================================
+%  LEÍDOS A FONDO DE TU BIBLIOTECA (confirmados por su texto)
+% ======================================================================
+
+@inproceedings{yan2024gcsdp,
+  author    = {Yan, Zeqing and Yu, Guangxi and Zhan, Mengqi and Zhang, Yan and
+               Hu, Jiaxi},
+  title     = {{5GC-SDP}: Security Enhancement of {5G} Core Networks With
+               Zero Trust},
+  booktitle = {Proc. IEEE 27th International Conference on Computer Supported
+               Cooperative Work in Design (CSCWD)},
+  year      = {2024},
+  pages     = {1597--1602},
+  note      = {SDP + Single Packet Authorization sobre free5GC; NRF como
+               controlador SDP; detección ML de SPA-DoS. Overhead +59us NF-NF,
+               0.8s abrir el core. Competidor directo, mecanismo distinto.}
+}
+
+@article{bello2022sustainedzt,
+  author    = {Bello, Yahuza and Hussein, Ahmed Refaey and Ulema, Mehmet and
+               Koilpillai, Juanita},
+  title     = {On Sustained Zero Trust Conceptualization Security for Mobile
+               Core Networks in {5G} and Beyond},
+  journal   = {IEEE Transactions on Network and Service Management},
+  volume    = {19},
+  number    = {2},
+  pages     = {1876--1889},
+  year      = {2022},
+  doi       = {10.1109/TNSM.2022.3157248},
+  note      = {Framework vEPC-vSDP (SDP virtualizado). Paradigma SDP/SPA.}
+}
+
+@inproceedings{hasanth2024sidecarless,
+  author    = {Hasanth, Karumuri Meher and Nadig, Deepak},
+  title     = {Evaluating the Performance of Sidecar-based and Sidecarless
+               Cloud-native Service Mesh Solutions},
+  booktitle = {Proc. IEEE International Conference on Advanced Networks and
+               Telecommunications Systems (ANTS)},
+  year      = {2024},
+  note      = {Cilium (sidecarless) vs Istio/Linkerd: Cilium = CNI + mesh,
+               menor OPEX/recursos, apto para edge. Respalda el argumento
+               eBPF-sin-sidecar de CIB46.}
+}
+
+@misc{deshpande2026ebpfvuln,
+  author    = {Deshpande, Yash and Bera, Samaresh},
+  title     = {Vulnerability Analysis of {eBPF}-enabled Containerized
+               Deployments of {5G} Core Networks},
+  year      = {2026},
+  eprint    = {2603.19867},
+  archivePrefix = {arXiv},
+  note      = {Ataques CONTRA eBPF (cross-container, DoS por bpf\_send\_signal,
+               robo de claves, bash injection) sobre Open5GS + eUPF. Limitación:
+               el plano de enforcement eBPF es también superficie de ataque.}
+}
+
+@inproceedings{kumar2023g5latte,
+  author    = {Kumar, Ayush and Thing, Vrizlynn L. L.},
+  title     = {Malicious Lateral Movement in {5G} Core With Network Slicing
+               And Its Detection},
+  booktitle = {Proc. 33rd International Telecommunication Networks and
+               Applications Conference (ITNAC)},
+  year      = {2023},
+  pages     = {110--117},
+  note      = {5GLatte: DETECCIÓN (grafo + anomalías) de movimiento lateral
+               sobre OAI; MITRE ATT\&CK + FiGHT. Contraste con la PREVENCIÓN
+               inline de CIB46.}
+}
+
+% ======================================================================
+%  EVIDENCIA DE AMENAZA (CVE / issues) Y DATASET
+% ======================================================================
+
+@misc{cve202655068,
+  title = {{CVE-2026-55068} / {GHSA-x8mj-6p3q-g5pp}: Unauthenticated NF
+           registration in free5GC NRF},
+  howpublished = {\url{https://github.com/free5gc/free5gc} (advisory)},
+  year = {2026},
+  note = {Registro PUT no autenticado de NF con endpoints del atacante,
+          persistido y devuelto por NFDiscovery. Instancias en Open5GS
+          (issue \#4778) y OAI (oai-cn5g-nrf issue \#6). Valida A2/A2'.}
+}
+
+@misc{cve202563288,
+  title = {{CVE-2025-63288}: Open5GS AMF denial of service via malformed
+           {NGSetupRequest}},
+  howpublished = {\url{https://osv.dev/vulnerability/CVE-2025-63288}},
+  year = {2025},
+  note = {AMF de Open5GS 2.7.6 cae ante NGSetupRequest malformado (CVSS 7.5,
+          CWE-400). Valida el vector A3 (DoS de señalización N2/NGAP).}
+}
+
+@inproceedings{duchesne20255gattacks,
+  author    = {Duchesne, (verificar) and Blaise, Agathe and
+               Braconnot Velloso, Pedro and Conan, Vania},
+  title     = {{5G-Attacks}: A New Dataset From Realistic {5G}-Core Attacks},
+  booktitle = {Proc. 4th International Conference on 6G Networking (6GNet)},
+  address   = {Paris, France},
+  year      = {2025},
+  note      = {Dataset de ataques al core 5G (Open5GS). Grupo francés;
+               complementario (generan ataques; CIB46 los contiene).}
+}
+
+% ======================================================================
+%  ESTÁNDARES / MARCOS
+% ======================================================================
+
+@techreport{nist800207,
+  author      = {Rose, Scott and Borchert, Oliver and Mitchell, Stu and
+                 Connelly, Sean},
+  title       = {Zero Trust Architecture},
+  institution = {National Institute of Standards and Technology},
+  number      = {NIST SP 800-207},
+  year        = {2020},
+  doi         = {10.6028/NIST.SP.800-207}
+}
+
+@techreport{enisa2024,
+  author      = {{ENISA}},
+  title       = {ENISA Threat Landscape 2024},
+  institution = {European Union Agency for Cybersecurity},
+  year        = {2024}
+}
+
+@misc{mitrefight,
+  author = {{MITRE}},
+  title  = {{FiGHT}: 5G Hierarchy of Threats},
+  howpublished = {\url{https://fight.mitre.org/}},
+  year = {2022}
+}
+
+@techreport{nsacisa2021lateral,
+  author = {{NSA} and {CISA}},
+  title  = {Security Guidance for 5G Cloud Infrastructures, Part I:
+            Prevent and Detect Lateral Movement},
+  institution = {National Security Agency / Cybersecurity and Infrastructure
+                 Security Agency},
+  year = {2021}
+}
+
+@techreport{iturm2410,
+  author = {{ITU-R}},
+  title  = {Minimum requirements related to technical performance for
+            {IMT-2020} radio interface(s)},
+  institution = {International Telecommunication Union},
+  number = {Report ITU-R M.2410-0},
+  year = {2017},
+  note = {Latencia de plano de control: mínimo 20 ms, deseable 10 ms.}
+}
