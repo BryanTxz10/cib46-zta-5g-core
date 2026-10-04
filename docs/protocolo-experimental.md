@@ -13,6 +13,13 @@
 > UERANSIM + k3s), porque el objetivo es **medir bien lo que ya montaste**, no
 > cambiar de tecnología. Donde una decisión cambia el diseño, se marca como
 > **[DECISIÓN]**.
+>
+> **Encuadre (v2):** el objeto NO es la 5G pública de un operador, sino la **red
+> privada 5G industrial (SNPN, 3GPP Rel-16/17)** — Industria 4.0. Esa elección no
+> es cosmética: ajusta el alcance a lo que realmente modela tu testbed (core
+> cloud-native on-premise, open-source, single-tenant, con amenaza interna/OT y de
+> supply-chain). La **minería peruana es un vertical/caso motivador**, no la
+> población. Ver §1 (contribution statement) y §4-bis (escenario).
 
 ---
 
@@ -36,9 +43,19 @@
 
 ## 1. Preguntas de investigación e hipótesis (falsables)
 
-**Pregunta general.** En un núcleo 5G SA cloud-native, ¿cuánto **cubre** y cuánto
-**cuesta** cada dimensión incremental de control Zero Trust nativo de eBPF frente
-a vectores de ataque representativos del SBA?
+> **Contribution statement (úsalo literal en abstract e introducción):**
+> *Medimos, por capa y por vector de ataque, qué **cubre** y cuánto **cuesta** un
+> enforcement Zero Trust nativo de eBPF (identidad L3/L4 + autorización L7 por rol)
+> sobre un core 5G SA open-source real para **redes privadas 5G industriales**,
+> caracterizando el **mecanismo de bloqueo** (drop en el SYN vs 403 post-handshake)
+> y los **anti-patrones de configuración**, de forma **reproducible**.*
+> Es una contribución **comparativa / de caracterización**, no "un framework ZT
+> nuevo" — y así debe presentarse (ver nota de novedad al final de §1).
+
+**Pregunta general.** En un núcleo 5G SA cloud-native para **redes privadas
+industriales (SNPN)**, ¿cuánto **cubre** y cuánto **cuesta** cada dimensión
+incremental de control Zero Trust nativo de eBPF frente a vectores de ataque
+representativos del SBA?
 
 Hipótesis (cada una con su prueba y métrica; ver §4 y §7):
 
@@ -66,6 +83,17 @@ Hipótesis (cada una con su prueba y métrica; ver §4 y §7):
 > eBPF (namespace + label de identidad)*, **no** como identidad criptográfica. Se
 > declara el supuesto de amenaza bajo el que es efectiva (§3) y se añade el
 > control de admisión que la vuelve no-forjable **[DECISIÓN, ver §3.2]**.
+
+> **Nota de novedad (cómo defenderla ante el jurado).** Los *componentes* no son
+> nuevos (Cilium/Budigiri; ZT-5GC/5GC-SDP, THAALOUB; L7 eBPF). Lo que **nadie de
+> la literatura hace** y es tu aporte: (1) **ablación incremental por capa dirigida
+> por un vector dedicado** (C0→C3) que aísla el efecto marginal de cada dimensión;
+> (2) **atribución de coste de enforcement por capa** (SYN-drop vs 403); (3)
+> **prevención inline determinista** frente a la mayoría basada en *detección*
+> (5GLatte, DL-anomaly); (4) **testbed abierto reproducible** dirigido por modelo de
+> amenaza. Preséntalo como estudio **comparativo/de caracterización**; si lo vendes
+> como "un framework ZT nuevo", es refutable con THAALOUB/5GC-SDP. Nivel adecuado:
+> **maestría** (rigor + posicionamiento honesto), no un mecanismo/teoría nuevos.
 
 ---
 
@@ -146,6 +174,85 @@ decláralo:**
 - **Unidad de análisis:** para métricas continuas con muestreo autocorrelacionado
   (IDR), la unidad es **la media por run**, no cada muestra (evita pseudo-replicación,
   RM-08).
+
+---
+
+## 4-bis. Escenario y topología experimental (infraestructura)
+
+> Responde a dos dudas: *(i)* ¿VMs o "un clúster"? y *(ii)* ¿qué modela realmente
+> el testbed? Corrige RM-22 (declaración de entorno) y refuerza la validez.
+
+### 4b.1 "Clúster" vs "VMs": es lo mismo, lo que cambia es de qué están hechos los nodos
+Un clúster de Kubernetes **está hecho de nodos**, y un nodo es una VM o una máquina
+bare-metal. Tus **3 VMs = un clúster de 3 nodos**. El multinodo **no es opcional**
+aquí: tus hallazgos H26/H28 son sobre propagación de **identidad eBPF *entre
+nodos*** (ipcache). Un solo nodo escondería esa clase de efectos. Espectro de lo
+que hace la literatura (de tu propio corpus):
+
+| Opción | Ejemplos | Fidelidad | Cuándo usarla |
+|---|---|---|---|
+| 1 host + Docker/Compose | 5GC-SDP, eBPF-vuln (IIT Jammu) | Baja (sin cross-node) | prototipado funcional rápido |
+| **K8s sobre VMs** (VMware/KVM/ESXi) | 5GLatte, **tú (v1)** | Media | claims de **seguridad** (¿bloquea?) |
+| **K8s bare-metal** (testbed compartido) | Sidecarless mesh (Chameleon) | Alta | claims de **rendimiento/IDR/latencia** |
+| VMs cloud | PoCs Nokia/Ericsson | Alta | escala / disponibilidad |
+
+**[DECISIÓN] Recomendación para ti (estás en Francia):**
+- Para **H1–H3 (cobertura/bloqueo)** → tus **3 VMs bastan** (incluso k3d multinodo).
+- Para **H4 (OVERHEAD-L7) y H5 (IDR)** → migra a **bare-metal multinodo en un
+  testbed nacional francés**: **Grid'5000** (bare-metal reservable, gratis para
+  investigación) o **SLICES-FR / FIT (R2lab)**. Quita el ruido del hipervisor
+  tipo-2 y es mucho más defendible. Confírmalo con tu laboratorio (Télécom Paris
+  participa). Si no hay acceso, las VMs son válidas: **decláralo** como limitación.
+
+### 4b.2 Distribución y nodos (declarar para reproducibilidad)
+- **SO:** Ubuntu 22.04 LTS — correcto (SO de referencia de Open5GS; compila
+  UERANSIM; kernel 5.15 soporta eBPF/Cilium 1.15 y el módulo **SCTP** de N2).
+  **Declara la versión de kernel** (y si usaste HWE). No cambies de distro.
+- **Rellena esta tabla** (hoy el README no da specs → no es reproducible):
+
+| Nodo | Rol | vCPU | RAM | Kernel | Namespaces / NFs alojados |
+|---|---|---|---|---|---|
+| master | control-plane k3s, SPIRE server | ? | ? | ? | — |
+| worker1 | worker | ? | ? | ? | 5g-cp (parte de las 9 NFs) |
+| worker2 | worker, N2/Multus | ? | ? | ? | 5g-ran (gNB), resto 5g-cp |
+
+> Referencia: THAALOUB usó ~7 vCPU / 25 GB para un stack similar (Open5GS+OAI +
+> Cilium+Istio+SPIRE). Dimensiona para que el **host no sea el cuello de botella**.
+
+### 4b.3 Colocación de pods (controlar, no dejar al azar)
+- **Fija la colocación** con `nodeSelector`/affinity y **documéntala**: qué NF en
+  qué nodo, idéntico en todas las corridas.
+- **Atacante en un nodo DISTINTO del NRF/AMF.** Así A1/A2′ atraviesan el camino
+  **cross-node** (el caso difícil para el defensor y el que de verdad valida la
+  identidad eBPF). Si atacante y víctima caen en el mismo nodo, el tráfico va por
+  fast-path intra-nodo y el resultado **no significa lo mismo** → regístralo como
+  parte del diseño, no como accidente.
+
+### 4b.4 Control del ruido de medición
+- Hipervisor tipo-2 (VMware Workstation) añade ruido a IDR/latencia → **CPU pinning**
+  si puedes, **nada más corriendo en el host** durante las corridas, y registra la
+  **carga del host** como covariable (RM-19). En bare-metal (Grid'5000) este
+  problema desaparece.
+- **NTP/chrony** sincronizado entre nodos (RM-24); módulo **SCTP** cargado y
+  persistente; NAD de Multus versionado (RM-25).
+
+### 4b.5 Qué modela el testbed (y qué no) — private vs public 5G
+El escenario es una **red privada 5G industrial (SNPN)**, no una pública. Diferencias
+que **justifican** tu testbed y tu modelo de amenaza:
+
+| Dimensión | 5G pública (telco) | **Private/industrial 5G (tu objeto)** |
+|---|---|---|
+| Frontera de confianza | Operador telco, endurecido | La **empresa** opera el core; menos madurez; comparte infra con OT/IT |
+| Core | Propietario (Ericsson/Nokia) | **Open-source on-premise** (Open5GS/free5GC) ✔ como el tuyo |
+| Escala / tenancy | Masivo, multi-tenant | **Pequeño, 1/pocos tenants** ✔ tu 1 suscriptor es abstracción razonable |
+| Amenaza dominante | Externa, señalización inter-operador | **Interna / OT / supply-chain (CI/CD)** ✔ tus A2′/A2″ |
+| Despliegue | Centralizado | **Edge/on-prem, URLLC local-breakout** ✔ tu argumento de OVERHEAD-L7 |
+
+→ El reencuadre **hace tu testbed MÁS válido**, no menos: un core open-source,
+single-tenant, con atacante interno, es una red privada, no una pública. La
+**minería peruana es un vertical** (como puertos, fábricas, energía); el aporte
+transfiere por mecanismo, no por datos de Perú (resuelve RM-09 y tu restricción de
+recolectar datos desde Francia: el testbed genera sus propios datos).
 
 ---
 
@@ -234,9 +341,12 @@ unidad (RM-08).
 - **Interna:** orden/arrastre → bloques aleatorizados + reset (§4); generador como
   posible limitante → caracterización (§6.4).
 - **Externa:** 1 testbed, 1 hipervisor → los **valores absolutos** son específicos;
-  lo transferible son las **diferencias relativas** entre condiciones. Carga de
-  fondo (§6.5) acerca a "private/industrial 5G". El gancho "minería" es motivación,
-  no población estadística (RM-09).
+  lo transferible son las **diferencias relativas** entre condiciones. El objeto es
+  **private/industrial 5G (SNPN)**, no pública (§4b.5): el testbed open-source,
+  single-tenant y con atacante interno **modela una red privada**, lo que refuerza
+  la validez. Carga de fondo (§6.5) acerca a operación realista. El gancho "minería"
+  es un **vertical/motivación**, no población estadística (RM-09). Migrar a
+  bare-metal (Grid'5000/SLICES, §4b.1) eleva la fidelidad de los valores absolutos.
 - **Conclusión estadística:** potencia a priori (§5), corrección múltiple (§7).
 
 ---
