@@ -32,6 +32,7 @@
 |---|---|---|
 | ✅ **Evaluating Sidecar vs Sidecarless Service Mesh** (Hasanth & Nadig, Purdue, IEEE ANTS 2024) | Cilium (sidecarless) vs Istio/Linkerd; Cilium = CNI+mesh, menor OPEX/recursos; "apto para edge" | **Respalda tu argumento central** eBPF-sin-sidecar. Cítalo en la justificación de diseño. |
 | ✅ **Vulnerability Analysis of eBPF-enabled Containerized 5G Core** (Deshpande & Bera, IIT Jammu, arXiv 2603.19867) | Ataques **contra** eBPF (cross-container, DoS por `bpf_send_signal`, robo de claves, bash injection) sobre Open5GS + eUPF | **Limitación que debes citar**: tu plano de enforcement (eBPF) es a la vez superficie de ataque. Lo conviertes en "trabajo futuro / amenaza complementaria". |
+| ✅ **Performance & Latency Efficiency of K8s CNIs** (Dakić, Redžepagić, Bašić, Žgrablić; Algebra Univ., MDPI Electronics 2024, 13(19):3972) | Benchmark Antrea/Calico/Cilium/Flannel con Ansible y perfiles tuned (contexto HPC/AI). **Cilium = mayor overhead de CPU (~7%)** por DPI L7; Flannel la menor latencia; CNIs añaden +40–90 ms y −40% BW vs físico | **Doble filo**: respalda que "el coste del CNI es real y el L7 de Cilium concentra el overhead" (alinea con tu C2→C3), pero **su contexto es HPC bandwidth-heavy, no SBI de 5G** → cita el patrón, no los valores absolutos. |
 | ○ eBPF: A New Approach to Cloud-Native Observability… (Soldani et al., IEEE Access 2023) | eBPF para observabilidad/seguridad 5G/6G | Cita fundacional para justificar eBPF. |
 | ○ Monitoring 5G Core Vulnerabilities with eBPF | Detección de vulns con eBPF | Observabilidad (Hubble-like). |
 | ○ Enhancing 5G Core security with eBPF/XDP | Seguridad plano de datos eBPF/XDP | Complementa tu enfoque en plano de control. |
@@ -83,9 +84,11 @@ Validación Tecno-Económica LTE-5G Perú · (NIST SP 1800-19 está aquí tambi�
 | Trabajo | Core | Plano de control ZT | Enforcement | ¿Incremental por capa? | ¿Coste medido? | Prevención/Detección |
 |---|---|---|---|---|---|---|
 | **CIB46 (tú)** | **Open5GS 2.7** | **Cilium eBPF** (L3/L4 identidad) + **L7 RBAC (Envoy)** | **In-kernel, pre-handshake (SYN) + L7 403** | **Sí (C0→C3, 1 vector/capa)** | **Sí (+13% L7, IDR)** | **Prevención** |
+| THAALOUB (Benzaïd et al., WCNC 2025) | **Open5GS y OAI** | Cilium + **Istio** + **SPIFFE/SPIRE** (identidad cripto) | **Con sidecar** (Istio/Envoy) + eBPF | No (multinivel, no por vector) | Sí (<37% CPU / <24% RAM; NF ~1.4–2.3 ms) | Prevención |
 | 5GC-SDP | free5GC | SDP + SPA (NRF=controlador) | Firewall dinámico por SPA | No (bloque) | Sí (+59µs NF-NF; 0.8s abrir core) | Prevención + detección ML de SPA-DoS |
 | vEPC-vSDP (Sustained ZT) | EPC/5GC | SDP virtualizado | Perímetro por autenticación | No | Resiliencia DoS/DDoS/portscan | Prevención |
 | Sidecarless mesh eval | (microservicios genéricos) | Cilium vs Istio/Linkerd | eBPF sidecarless | No | **Sí (Cilium > Istio; menor OPEX)** | n/a (rendimiento) |
+| CNI perf. benchmark (Dakić et al., Electronics 2024) | n/a (HPC/AI, no 5G) | — compara 4 CNIs | Antrea/Calico/Cilium/Flannel | No | Sí (**Cilium el de mayor CPU ~7%**; +40–90 ms, −40% BW) | n/a (rendimiento) |
 | 5GLatte | OAI | — (detección) | Grafo+anomalías sobre logs | No | TPR 100%/FPR 8.3% | **Detección** post-hoc |
 | eBPF-vuln (IIT Jammu) | Open5GS+eUPF | — (ataca eBPF) | n/a | No | n/a | Ataque (superficie eBPF) |
 
@@ -154,7 +157,11 @@ vector). **Ahí está tu paper.**
   (ZT conceptual), 5GLatte y DL-anomaly (detección), THAALOUB y Budigiri (eBPF/mesh,
   **faltan en tu biblioteca**, ver §6).
 - **Design / por qué eBPF sin sidecar:** sidecarless eval (Purdue) + Soldani +
-  eSeMeshA/NAS; contrástalo con overheads mTLS de service mesh.
+  eSeMeshA/NAS; contrástalo con overheads mTLS de service mesh. Añade el benchmark
+  de CNIs (Dakić et al., Electronics 2024) para situar el coste del CNI **con la
+  salvedad** de que su Cilium ~7% CPU es en HPC bandwidth-heavy, no en SBI; úsalo
+  para argumentar que el overhead de Cilium se concentra en el DPI L7 (coherente
+  con tu salto C2→C3), no para dar cifras absolutas.
 - **Evaluation:** tu C0→C3; compara tu +13% L7 contra el +59 µs/0.8 s de 5GC-SDP
   (coste de distinto tipo) y contra overheads mTLS.
 - **Limitations / Future work:** eBPF como superficie de ataque (IIT Jammu);
@@ -166,28 +173,45 @@ vector). **Ahí está tu paper.**
 
 ## 5. Referencias incorporadas (los 4 que faltaban) — fichas y enlaces
 
-Estos 4 trabajos son centrales para tu related work y **no estaban** en tu Drive.
-Ya están incorporados al `.bib` del repo (`docs/referencias.bib`) y como entradas
-de related work aquí abajo.
+Estos 4 trabajos son centrales para tu related work. Ya están incorporados al
+`.bib` del repo (`docs/referencias.bib`) y como entradas de related work aquí
+abajo.
 
-> **No pude subir los PDF a tu Drive desde esta sesión:** el proxy de egress del
-> contenedor bloquea IEEE Xplore, Zenodo, MDPI, arXiv y KU Leuven (403 en CONNECT).
-> Descárgalos tú con tu acceso institucional de la **UNI** (tus PDFs ya llevan la
-> marca "Universidad Nacional de Ingeniería … IEEE Xplore") desde estos enlaces y
-> déjalos en `Material bibliografico/Papers`; si luego quieres, los leo a fondo
-> desde Drive e integro sus cifras exactas.
+> **Estado de los PDF (actualizado):** me pasaste 4 PDF por el chat y los **leí a
+> fondo**; las fichas de abajo ya traen cifras y autores **confirmados del texto**.
+> **Aviso:** el archivo que subiste como Budigiri (`2608.15518v1.pdf`) **no es** ese
+> paper — es *"A Lifecycle-Oriented Detection and Defense Framework for Price
+> Manipulation Attacks in DeFi"* (Xiong, Liu, Li; Hainan University), ajeno a 5G.
+> **Budigiri sigue faltando**; descárgalo de Lirias KU Leuven (enlace en Ficha 2) y
+> pásamelo si quieres sus cifras exactas. (No pude bajarlo yo: el proxy de egress
+> bloquea IEEE/Zenodo/MDPI/arXiv/KU Leuven.)
 
-### Ficha 1 — THAALOUB (competidor multinivel service-mesh + CNI)
-- **Cita:** C. Benzaid, N. Guerd, N. E. H. Rehouma, K. Zeraoulia, T. Taleb,
+### Ficha 1 — THAALOUB ✅ *leído* (tu competidor más fuerte y más cercano)
+- **Cita:** C. Benzaïd, N. Guerd, N. E. H. Rehouma, K. Zeraoulia, T. Taleb,
   *A Multi-Layered Zero Trust Microsegmentation Solution for Cloud-Native 5G &
   Beyond Networks*, **IEEE WCNC 2025**, Milán.
-- **Afiliaciones:** Univ. Oulu (Benzaid); USTHB (Guerd/Rehouma/Zeraoulia); Ruhr
-  Univ. Bochum (Taleb).
-- **Qué hace:** ZT multinivel con **Service Mesh + CNI** e *intent-based access
-  control*, 3GPP-compliant; "impacto mínimo en latencia/recursos".
-- **Cómo lo posicionas:** su enforcement es **con sidecar** (service mesh); CIB46 es
-  **sidecarless (eBPF/Envoy nativo)** y atribuye **coste por capa**. Clave citarlo:
-  Taleb/Benzaid son referentes europeos → tu jurado en Francia lo conocerá.
+- **Afiliaciones:** Univ. Oulu, Finlandia (Benzaïd); USTHB, Argelia
+  (Guerd/Rehouma/Zeraoulia); Ruhr Univ. Bochum, Alemania (Taleb).
+- **Testbed (confirmado del texto):** probado sobre **DOS cores — Open5GS *y*
+  OAI** (+ UERANSIM, Kubernetes, 7 vCPU/25 GB), con **Cilium (CNI) + Istio
+  (service mesh, Envoy) + SPIFFE/SPIRE** para identidad criptográfica, y control
+  de acceso **intent-based**, 3GPP-compliant, multinivel (5GC + NG-RAN).
+- **Cifras (confirmadas):** overhead de THAALOUB **< 37 % CPU y < 24 % RAM** en el
+  5GC (**< 14 % / < 10 %** en NG-RAN), atribuido a Cilium+Istio+SPIRE; latencia de
+  plano de control por NF **~1.38–2.3 ms**; afirman **menor** latencia E2E (iPerf2)
+  que el setup Cilium-sin-ZT.
+- **Cómo lo posicionas (honesto):** THAALOUB es **más completo que CIB46 en
+  identidad** — logra SPIFFE/SPIRE **criptográfico y con enforcement** (lo que tu
+  H10/H21 descartó). Tu diferencia **no** es "más ZT", sino: (1) **sidecarless** —
+  CIB46 no mete Istio ni sidecars Envoy, solo el proxy L7 embebido de Cilium → stack
+  más simple y ligero; (2) **evaluación incremental dirigida por vectores**
+  (C0→C3, un ataque por capa) que THAALOUB **no** hace; (3) **atribución de coste por
+  capa** (SYN-drop vs 403). Marco honesto: *"THAALOUB ofrece ZT multinivel con
+  identidad criptográfica vía service mesh; nosotros medimos qué cubre y qué cuesta
+  cada capa de un enforcement eBPF sidecarless, con identidad basada en atributos
+  verificados por el dataplane como compromiso de ligereza"*. Úsalo también para
+  cerrar RM-05: THAALOUB demuestra que la identidad no-forjable (SPIFFE) **es
+  alcanzable** → tu label es una decisión de diseño, no una limitación insalvable.
 - **Enlaces:** Zenodo (OA) `https://zenodo.org/records/14699793` · DOI
   `10.5281/zenodo.14699793` · IEEE `https://ieeexplore.ieee.org/document/10978671/`
 
@@ -204,23 +228,34 @@ de related work aquí abajo.
   `https://lirias.kuleuven.be/server/api/core/bitstreams/14e501bd-e6bb-41d6-bf72-360c4850443a/content`
   · Zenodo `https://zenodo.org/records/5776322`
 
-### Ficha 3 — Duong & Kim (Cilium + SCP en el 5GC)
-- **Cita:** B. V. Duong, Y. Kim, *A Design of Service Mesh Based 5G Core Network
-  Using Cilium*, **ICOIN 2023**.
-- **Qué hace:** service mesh con Cilium aplicado al 5GC usando el SCP.
-- **Cómo lo posicionas:** antecedente directo de Cilium+SCP; respalda tu **nota de
-  validez del SCP** como broker (Model D, 3GPP TS 23.501 §6.3).
-- **Enlaces:** IEEE `https://ieeexplore.ieee.org/document/10049044/` · DOI
-  `10.1109/ICOIN56518.2023.10049044` (verificar).
+### Ficha 3 — Duong & Kim ✅ *leído* (diseño Service Mesh + Cilium para el 5GC)
+- **Cita:** Van-Binh Duong, Younghan Kim (Soongsil University, Seúl), *A Design of
+  Service Mesh Based 5G Core Network Using Cilium*, **ICOIN 2023**. DOI
+  `10.1109/ICOIN56518.2023.10049044`.
+- **Qué hace (confirmado):** es un paper **de diseño/propuesta cualitativa** — mezcla
+  **Istio + Cilium** como service mesh para el 5GC y compara contra el diseño normal
+  "por características cualitativas". **No** trae evaluación cuantitativa ni ataques.
+- **Cómo lo posicionas:** antecedente de Cilium como plano del 5GC; **úsalo como
+  motivación de diseño**, no como baseline empírico. Contraste a tu favor: donde
+  ellos proponen cualitativamente, tú **mides** (coste por capa) y **atacas**
+  (C0→C3). Apoya tu encuadre del SCP como broker (Model D, TS 23.501 §6.3).
+- **Enlace:** IEEE `https://ieeexplore.ieee.org/document/10049044/`.
 
-### Ficha 4 — Detección de conflictos en políticas Cilium (formaliza tu H30)
-- **Cita:** *A Decision-Diagram Framework for Conflict Detection in Multi-Layer
+### Ficha 4 — Chomsiri & Phunsa ✅ *leído* (formaliza tu H30)
+- **Cita:** Thawatchai Chomsiri, Suwichai Phunsa (Mahasarakham University,
+  Tailandia), *A Decision-Diagram Framework for Conflict Detection in Multi-Layer
   Cilium Network Policies*, **J. Cybersecurity and Privacy (MDPI)**, 6(4):136, 2026.
-  *(autores: verificar en la página)*
-- **Qué aporta:** semántica formal de la composición KNP (aditiva) / CNP (deny-wins)
-  / CCNP (cluster-override); detecta anomalías de **shadow** y redundancia.
-- **Cómo lo posicionas:** convierte tu **H30** (la política amplia anula a la
-  granular de identidad) de anécdota a caso empírico de un fenómeno ya formalizado.
+- **Qué aporta (confirmado):** **primera semántica denotacional formal** de la
+  composición de las 3 capas de Cilium — **KNP (aditiva) / CNP (deny-wins) / CCNP
+  (cluster-override)** — y algoritmos certificados que detectan anomalías de
+  **shadow, redundancia y conflicto cross-layer** (precisión/recall 1.000 vs fuerza
+  bruta; validado contra Cilium **v1.19.5**; latencia de clasificación 0.74–1.95 µs,
+  < 60 ns en C++). Mencionan KANO y VeriKube como trabajos previos.
+- **Cómo lo posicionas:** convierte tu **H30** (la política amplia *allow* anula —
+  *shadow* — a la granular de identidad sobre el NRF) de anécdota a **instancia
+  empírica de una anomalía cross-layer ya formalizada**. Cita clave en "Lessons
+  learned": tu patrón "excluir el endpoint objetivo del selector amplio" es una
+  mitigación práctica del *shadow* que ellos caracterizan formalmente.
 - **Enlace:** `https://www.mdpi.com/2624-800X/6/4/136` (OA).
 
 > **Evidencia de amenaza (no son "related work" sino threat model):**
