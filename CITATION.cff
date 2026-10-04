@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "Si usas este testbed o sus resultados, cítalo como se indica."
+title: "CIB46 — Testbed Zero Trust incremental sobre núcleo 5G SA cloud-native"
+abstract: >-
+  Testbed reproducible para medir, por capa y por vector de ataque, la cobertura
+  y el coste de controles Zero Trust nativos de eBPF (microsegmentación L3/L4,
+  identidad de workload y autorización L7 por rol) sobre un núcleo 5G SA
+  open-source (Open5GS) con Cilium, orientado a redes privadas 5G industriales.
+type: software
+authors:
+  - family-names: "Cucho Suyo"
+    given-names: "Bryan Alejandro"
+    affiliation: "Universidad Nacional de Ingeniería (UNI-FIEE)"
+license: MIT
+repository-code: "https://github.com/BryanTxz10/cib46-zta-5g-core"
+version: "2.0.0"
+date-released: "2026-10-04"
+keywords:
+  - "Zero Trust"
+  - "5G SA core"
+  - "cloud-native"
+  - "eBPF"
+  - "Cilium"
+  - "Open5GS"
+  - "private 5G"
+  - "Industry 4.0"
+  - "reproducibility"
+# Cuando publiques el release en Zenodo, pega aquí el DOI:
+# doi: "10.5281/zenodo.XXXXXXX"

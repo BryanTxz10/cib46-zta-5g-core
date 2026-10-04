@@ -1,0 +1,43 @@
+# all.yml — VARIABLES del despliegue (versiones y parámetros).
+# Equivale a bootstrap/versions.env, pero en formato Ansible.
+# ================== REVISA / EDITA ==================
+---
+# --- Kubernetes / CNI ---
+k3s_version: "v1.28.5+k3s1"
+cilium_version: "1.15.4"
+multus_version: "v4.0.2"
+metrics_server_version: "v0.7.1"
+
+# --- Núcleo 5G (chart Helm towards5gs) ---
+open5gs_chart: "towards5gs/open5gs"
+open5gs_chart_version: "2.2.4"      # AJUSTA al que uses (Open5GS 2.7)
+towards5gs_repo_url: "https://raw.githubusercontent.com/Orange-OpenSource/towards5gs-helm/main/repo/"
+
+# --- Identidad (opcional; no hace enforcement) ---
+spire_version: "1.9.0"
+deploy_spire: true                  # ponlo en false para saltarte SPIRE
+
+# --- RAN simulada ---
+ueransim_version: "v3.2.6"
+
+# --- Imágenes (PINNEA POR DIGEST para calidad-paper; ver REPRODUCIBILITY.md) ---
+# Ejemplo con digest: "nicolaka/netshoot@sha256:<digest>"
+netshoot_image: "nicolaka/netshoot:v0.13"
+ueransim_gnb_image: "towards5gs/ueransim-gnb:v3.2.6"
+ueransim_ue_image: "towards5gs/ueransim-ue:v3.2.6"
+
+# --- Parámetros de red / testbed ---
+plmn_mcc: "999"
+plmn_mnc: "70"
+ns_cp: "5g-cp"
+ns_ran: "5g-ran"
+ns_up: "5g-up"
+n2_subnet: "10.10.0.0/24"
+n2_gnb_ip: "10.10.0.20"
+
+# Interfaz física de los WORKERS que da a la red N2 (para Multus macvlan).
+# ================== AJUSTA a tu interfaz real (ip a) ==================
+multus_master_iface: "eth1"
+
+# Ruta del kubeconfig que crea k3s en el master (no cambiar salvo que sepas).
+kubeconfig_path: "/etc/rancher/k3s/k3s.yaml"

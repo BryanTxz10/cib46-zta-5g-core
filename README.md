@@ -22,14 +22,28 @@ Telecomunicaciones (UNI-FIEE).
 
 ```
 .
-├── cilium-policies/     # Manifiestos YAML de CiliumNetworkPolicy por condición (C1, C2, C3)
+├── ansible/             # Despliegue declarativo con Ansible (recomendado) + guía desde cero
+├── bootstrap/           # Despliegue con bash (respaldo), checks y análisis estadístico
+├── cilium-policies/     # CiliumNetworkPolicy por condición + overlays Kustomize (conditions/)
 ├── helm-values/         # values.yaml del chart towards5gs-helm
 ├── attack-scripts/      # Scripts de ejecución de los vectores A1, A2, A2', A2'', A3
 ├── spire-config/         # Configuración de SPIRE Server y Agent
 ├── monitoring/          # Consultas de monitoreo de recursos del AMF
 ├── data-processing/     # Scripts Python de procesamiento estadístico
-└── ueransim-config/     # Configuración de UERANSIM (gNB y UEs)
+├── ueransim-config/     # Configuración de UERANSIM (gNB y UEs)
+└── docs/                # Metodología, reproducibilidad, related work, revisión
 ```
+
+## Despliegue automatizado
+
+Dos caminos equivalentes (versiones fijadas, idempotentes):
+
+| Camino | Comando | Para |
+|---|---|---|
+| **Ansible** (declarativo, recomendado) | `cd ansible && ansible-playbook site.yml` | calidad-paper; ver `ansible/README-ansible.md` (desde cero) |
+| **Bash** (imperativo, respaldo) | `make up` | prototipado rápido; ver `docs/guia-reproducibilidad.md` |
+
+Reproducibilidad del artefacto y pasos extremo a extremo: `REPRODUCIBILITY.md`.
 
 ## Condiciones experimentales
 
