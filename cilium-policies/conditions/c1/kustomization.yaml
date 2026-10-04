@@ -1,0 +1,14 @@
+# Condición C1 — microsegmentación L3/L4 (5 políticas).
+# Aplicar:
+#   kustomize build --load-restrictor=LoadRestrictionsNone \
+#     cilium-policies/conditions/c1 | kubectl apply -f -
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  cib46.io/managed: "true"
+resources:
+  - ../../c1/01-deny-ran-to-cp.yaml
+  - ../../c1/02-allow-sbi-intra-core.yaml
+  - ../../c1/03-allow-gnb-to-amf-n2.yaml
+  - ../../c1/04-deny-ran-to-mongodb.yaml
+  - ../../c1/05-ratelimit-n2-amf.yaml

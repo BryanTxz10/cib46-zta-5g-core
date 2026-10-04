@@ -1,0 +1,20 @@
+# Condición C2 — C1 + identidad de workload eBPF.
+# Reemplaza 'allow-sbi-intra-core' (C1) por 'allow-sbi-legit-nfs-only'.
+#
+# REQUISITO PREVIO (no es una política): etiquetar las NF legítimas con
+#   cib46-nf-type=core-nf   -> bash cilium-policies/c2/02-patch-identity-labels.sh
+# (o, para calidad-paper, el control de admisión de bootstrap/admission/).
+#
+# Aplicar:
+#   kustomize build --load-restrictor=LoadRestrictionsNone \
+#     cilium-policies/conditions/c2 | kubectl apply -f -
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  cib46.io/managed: "true"
+resources:
+  - ../../c1/01-deny-ran-to-cp.yaml
+  - ../../c1/03-allow-gnb-to-amf-n2.yaml
+  - ../../c1/04-deny-ran-to-mongodb.yaml
+  - ../../c1/05-ratelimit-n2-amf.yaml
+  - ../../c2/01-allow-sbi-legit-nfs-only.yaml

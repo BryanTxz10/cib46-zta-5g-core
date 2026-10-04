@@ -1,0 +1,14 @@
+# Condición C0 — baseline (política ancla allow-all, por H26).
+# Conjunto DECLARATIVO de políticas activas en C0.
+#
+# Aplicar (desde la raíz del repo):
+#   kustomize build --load-restrictor=LoadRestrictionsNone \
+#     cilium-policies/conditions/c0 | kubectl apply -f -
+# Transición limpia entre condiciones (recomendado):
+#   kubectl delete ciliumnetworkpolicy -A -l cib46.io/managed=true ; <aplicar arriba>
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  cib46.io/managed: "true"
+resources:
+  - ../../c0-allow-all-anchor.yaml

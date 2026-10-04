@@ -1,0 +1,16 @@
+# Condición C3 — C2 + autorización L7 por rol.
+# Reemplaza 'allow-sbi-legit-nfs-only' (C2) por 'allow-sbi-rbac-c3'.
+#
+# Aplicar:
+#   kustomize build --load-restrictor=LoadRestrictionsNone \
+#     cilium-policies/conditions/c3 | kubectl apply -f -
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonLabels:
+  cib46.io/managed: "true"
+resources:
+  - ../../c1/01-deny-ran-to-cp.yaml
+  - ../../c1/03-allow-gnb-to-amf-n2.yaml
+  - ../../c1/04-deny-ran-to-mongodb.yaml
+  - ../../c1/05-ratelimit-n2-amf.yaml
+  - ../../c3/01-allow-sbi-rbac-c3.yaml

@@ -5,9 +5,13 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-# ---- Infraestructura --------------------------------------------------------
+# ---- Infraestructura (Ansible = recomendado; bash = respaldo) --------------
+.PHONY: ansible-up
+ansible-up: ## Despliega con Ansible (recomendado). Corre en ansible/
+	cd ansible && ansible-playbook site.yml
+
 .PHONY: up
-up: ## Despliega todo el testbed desde cero (k3s -> Cilium -> ... -> C0)
+up: ## Despliega con bash (respaldo): k3s -> Cilium -> ... -> C0
 	bash bootstrap/bootstrap.sh
 
 .PHONY: up-no-spire
@@ -28,6 +32,11 @@ c2: ## Transición a C2 (identidad de workload)
 	cd cilium-policies && bash transition-to-c2.sh
 c3: ## Transición a C3 (autorización L7 por rol)
 	cd cilium-policies && bash transition-to-c3.sh
+
+.PHONY: condition
+condition: ## Transición declarativa con Kustomize (uso: make condition C=c1)
+	kubectl delete ciliumnetworkpolicy -A -l cib46.io/managed=true 2>/dev/null || true
+	kustomize build --load-restrictor=LoadRestrictionsNone cilium-policies/conditions/$(C) | kubectl apply -f -
 
 # ---- Verificación (RM-01: plano de control, no ICMP) -----------------------
 .PHONY: smoke
