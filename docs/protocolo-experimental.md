@@ -157,7 +157,9 @@ decláralo:**
   pods en 5g-cp con `cib46-nf-type=core-nf` salvo desde un ServiceAccount
   autorizado. Entonces el label deja de ser forjable y C2 gana solidez. Es
   automatizable y medible (añade un vector A2‴: "impostor que intenta ponerse el
-  label" → bloqueado en admission).
+  label" → bloqueado en admission). **Implementado:** política Kyverno +
+  vector A2‴ en `bootstrap/admission/` (cubre al impostor que forja el label; NO
+  cubre un pipeline autorizado ya comprometido → supply-chain, trabajo futuro).
 
 ---
 
@@ -302,9 +304,14 @@ con cada vector (`bootstrap/run-experiment.sh`). TBLOQ se calcula de los verdict
   15 s) o leer cgroup directo con delta temporal (mayor resolución).
 
 ### 6.5 Tráfico de fondo (corrige RM-09, refuerza validez externa) [DECISIÓN]
-Añadir **N UEs** y tráfico N3 sostenido durante las mediciones de IDR/latencia,
-para medir bajo carga realista (private/industrial 5G), no en vacío. Reportar con y
-sin carga de fondo.
+Medir bajo carga realista (private/industrial 5G), no en vacío. **Qué es "carga
+aceptable": un punto de operación justificado con estándares y barrido en niveles,
+no un número.** Define en **dos capas** — señalización SBI (la que estresa tu
+L7/NRF) y plano de usuario (contención para el IDR) — y barre **L0/L1/L2**.
+Perfil completo, clases de tráfico (TS 22.104 / 5G-ACIA) y niveles de carga en
+**`bootstrap/traffic/perfil-industria40.md`**; generador de señalización SBI
+reproducible en **`bootstrap/traffic/sbi-load-generator.sh`**. Reportar con y sin
+carga de fondo. Caracterizar el generador antes (RM-20).
 
 ---
 
