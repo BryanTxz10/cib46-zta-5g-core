@@ -73,6 +73,24 @@ del Perú.
 ○ TFM Gallego Vara · ○ TFM Valero Martí · ○ Bolívar de la Cruz (plataforma) · ○
 Validación Tecno-Económica LTE-5G Perú · (NIST SP 1800-19 está aquí también).
 
+### H. Laboratorio RMS de Télécom Paris (HAL) — del Excel `RMS_HAL_...xlsx`
+Trabajos del laboratorio anfitrión (colección RMS en HAL, 813 registros
+clasificados). **Citar al lab es estratégico si presentas en Télécom Paris.** Los
+que encajan con CIB46:
+
+| Trabajo (HAL) | Por qué te sirve |
+|---|---|
+| ✅ **MEDIATE** — Zero Trust mixto SW/HW para el computing continuum (Fournaris, Haleplidis, Huang et al., IEEE SIDS 2026) | **El ZT más cercano del propio lab.** Related work directo; posiciona CIB46 frente a un ZT cloud-edge del grupo. |
+| **Arena** — testbed Kubernetes para evaluar despliegues en el continuum (Chih-Kai Huang et al., IEEE ICC) | Metodología de **testbed K8s**; antecedente de evaluación por despliegue. |
+| **free5GRAN** — framework 5G open-source (de Javel, Gomez, Martins, VTC 2021) | 5G open-source del lab; respalda el uso de stacks abiertos. |
+| **NFV Platforms: Taxonomy, Design Choices…** (T. Zhang, Linguaglossa et al., IEEE TNSM 2021) + *software-switch benchmarking* (NetSoft/Computer Networks) | **Metodología de medición de overhead NFV** — respalda tu forma de medir coste. |
+| **Distributed Function Chaining with Anycast Routing** (Wion, Bouet, Iannone, **V. Conan**, SOSR 2019) | SFC; **Conan** es coautor del dataset *5G-Attacks* que ya citas → hilo con el lab. |
+| **SigN** — detección de SIMBox por anomalías de latencia en el edge celular (Kouam, Viana, Martins, ACM AsiaCCS 2025) | Seguridad celular por **detección** (contraste con tu prevención). |
+| **Rosy Altawil** (tesis, 2026) — sizing/deploy de redes móviles virtualizadas 5G/6G (URLLC, smart grids) | Dimensionamiento/despliegue de core virtualizado; contexto industrial. |
+
+> Están en `referencias.bib` (claves `*hal*`). Enlaces HAL en el Excel; la web de
+> HAL bloquea accesos automatizados pero abre normal desde navegador.
+
 > Archivos de nombre opaco a revisar y renombrar: `IJCSP24C1128`,
 > `Conferenceproceeding1`, `1570976591`, `AJACE2013…`, `ACFrOg…`, `MCPTT.docx`,
 > `TSP - BORDA CASTILLO`. Ábrelos y clasifícalos (o dime y los abro).
