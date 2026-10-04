@@ -164,34 +164,76 @@ vector). **Ahí está tu paper.**
 
 ---
 
-## 5. Lo que te FALTA en la biblioteca (consíguelo antes de enviar)
+## 5. Referencias incorporadas (los 4 que faltaban) — fichas y enlaces
 
-Estos son centrales para tu related work y **no están** en tu Drive:
+Estos 4 trabajos son centrales para tu related work y **no estaban** en tu Drive.
+Ya están incorporados al `.bib` del repo (`docs/referencias.bib`) y como entradas
+de related work aquí abajo.
 
-1. **THAALOUB** — Benzaid, Guerd, Rehouma, Zeraoulia, Taleb, *A Multi-Layered Zero
-   Trust Microsegmentation Solution for Cloud-Native 5G & Beyond*, IEEE WCNC 2025.
-   Tu competidor multinivel service-mesh+CNI. Imprescindible citarlo (Taleb/Benzaid
-   son referentes y europeos).
-2. **Budigiri et al.** — *Network Policies in Kubernetes: Performance Evaluation and
-   Security Analysis*, EuCNC/6G Summit 2021 (KU Leuven + Ericsson). Respaldo
-   cuantitativo de "NetworkPolicies eBPF reducen 75–99% la superficie de ataque con
-   overhead bajo".
-3. **Duong & Kim** — *A Design of Service Mesh Based 5G Core Network Using Cilium*,
-   ICOIN 2023. Antecedente directo de Cilium+SCP en el 5GC (apoya tu nota del SCP).
-4. **CVE-2026-55068** (free5GC NRF registro no autenticado) + **Open5GS issue
-   #4778** + **CVE-2025-63288** (AMF NGSetupRequest DoS). Evidencia de que tus
-   vectores son amenazas reales.
-5. (Opcional) El paper MDPI 2026 de detección de conflictos en políticas Cilium
-   multinivel (shadow/redundancy) — formaliza tu H30.
+> **No pude subir los PDF a tu Drive desde esta sesión:** el proxy de egress del
+> contenedor bloquea IEEE Xplore, Zenodo, MDPI, arXiv y KU Leuven (403 en CONNECT).
+> Descárgalos tú con tu acceso institucional de la **UNI** (tus PDFs ya llevan la
+> marca "Universidad Nacional de Ingeniería … IEEE Xplore") desde estos enlaces y
+> déjalos en `Material bibliografico/Papers`; si luego quieres, los leo a fondo
+> desde Drive e integro sus cifras exactas.
 
-Puedo buscarte los PDF/enlaces oficiales de estos si quieres.
+### Ficha 1 — THAALOUB (competidor multinivel service-mesh + CNI)
+- **Cita:** C. Benzaid, N. Guerd, N. E. H. Rehouma, K. Zeraoulia, T. Taleb,
+  *A Multi-Layered Zero Trust Microsegmentation Solution for Cloud-Native 5G &
+  Beyond Networks*, **IEEE WCNC 2025**, Milán.
+- **Afiliaciones:** Univ. Oulu (Benzaid); USTHB (Guerd/Rehouma/Zeraoulia); Ruhr
+  Univ. Bochum (Taleb).
+- **Qué hace:** ZT multinivel con **Service Mesh + CNI** e *intent-based access
+  control*, 3GPP-compliant; "impacto mínimo en latencia/recursos".
+- **Cómo lo posicionas:** su enforcement es **con sidecar** (service mesh); CIB46 es
+  **sidecarless (eBPF/Envoy nativo)** y atribuye **coste por capa**. Clave citarlo:
+  Taleb/Benzaid son referentes europeos → tu jurado en Francia lo conocerá.
+- **Enlaces:** Zenodo (OA) `https://zenodo.org/records/14699793` · DOI
+  `10.5281/zenodo.14699793` · IEEE `https://ieeexplore.ieee.org/document/10978671/`
+
+### Ficha 2 — Budigiri et al. (respaldo cuantitativo de NetworkPolicies eBPF)
+- **Cita:** G. Budigiri, C. Baumann, J. T. Mühlberg, E. Truyen, W. Joosen,
+  *Network Policies in Kubernetes: Performance Evaluation and Security Analysis*,
+  **EuCNC/6G Summit 2021**.
+- **Afiliaciones:** imec-DistriNet, KU Leuven + Ericsson Research.
+- **Qué aporta:** NetworkPolicies eBPF (Calico/Cilium) reducen **75–99 %** la
+  superficie de ataque con overhead **despreciable** para uRLLC edge.
+- **Cómo lo posicionas:** respaldo para tu elección de eBPF y para C1 (segmentación);
+  tú vas más allá (identidad de NF + L7 por rol, que ellos no hacen).
+- **Enlaces:** Lirias KU Leuven (OA, PDF)
+  `https://lirias.kuleuven.be/server/api/core/bitstreams/14e501bd-e6bb-41d6-bf72-360c4850443a/content`
+  · Zenodo `https://zenodo.org/records/5776322`
+
+### Ficha 3 — Duong & Kim (Cilium + SCP en el 5GC)
+- **Cita:** B. V. Duong, Y. Kim, *A Design of Service Mesh Based 5G Core Network
+  Using Cilium*, **ICOIN 2023**.
+- **Qué hace:** service mesh con Cilium aplicado al 5GC usando el SCP.
+- **Cómo lo posicionas:** antecedente directo de Cilium+SCP; respalda tu **nota de
+  validez del SCP** como broker (Model D, 3GPP TS 23.501 §6.3).
+- **Enlaces:** IEEE `https://ieeexplore.ieee.org/document/10049044/` · DOI
+  `10.1109/ICOIN56518.2023.10049044` (verificar).
+
+### Ficha 4 — Detección de conflictos en políticas Cilium (formaliza tu H30)
+- **Cita:** *A Decision-Diagram Framework for Conflict Detection in Multi-Layer
+  Cilium Network Policies*, **J. Cybersecurity and Privacy (MDPI)**, 6(4):136, 2026.
+  *(autores: verificar en la página)*
+- **Qué aporta:** semántica formal de la composición KNP (aditiva) / CNP (deny-wins)
+  / CCNP (cluster-override); detecta anomalías de **shadow** y redundancia.
+- **Cómo lo posicionas:** convierte tu **H30** (la política amplia anula a la
+  granular de identidad) de anécdota a caso empírico de un fenómeno ya formalizado.
+- **Enlace:** `https://www.mdpi.com/2624-800X/6/4/136` (OA).
+
+> **Evidencia de amenaza (no son "related work" sino threat model):**
+> CVE-2026-55068 (free5GC NRF) + Open5GS issue #4778 + OAI issue #6 (validan A2/A2′);
+> CVE-2025-63288 (AMF NGSetupRequest DoS, valida A3). Ya están en `referencias.bib`.
 
 ---
 
 ## 6. Acciones recomendadas
 
 1. Reescribir **Related Work** con la tabla §2 y el encuadre prevención-vs-detección.
-2. Añadir a la biblioteca los 5 faltantes de §5 (te los ubico si quieres).
+2. Descargar los 4 PDF de §5 con tu acceso UNI y dejarlos en `Papers` (ver nota:
+   no pude subirlos yo por el bloqueo de egress). El `.bib` ya los incluye.
 3. Insertar la **limitación eBPF-como-superficie** (IIT Jammu) y la vía de
    **identidad no forjable** (TPM/SPIFFE) — cierra RM-05/D1 con respaldo del propio
    corpus.
