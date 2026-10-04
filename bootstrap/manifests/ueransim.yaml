@@ -1,0 +1,62 @@
+# ueransim.yaml — gNB y UE simulados (UERANSIM v3.2.6) en el namespace 5g-ran.
+# Las configs se montan desde ConfigMaps creados por 90-ueransim.sh a partir de
+# ueransim-config/{gnb,ue}.yaml (fuente de verdad del repo).
+#
+# El gNB recibe la IP N2 10.10.0.20 vía Multus (NAD n2-net, ver 30-multus.sh).
+# Labels alineados con las CiliumNetworkPolicy:
+#   - gNB: app.kubernetes.io/name=ueransim-gnb  (c1/03-allow-gnb-to-amf-n2.yaml)
+#   - UE : el nombre del pod contiene 'ues'      (transition-to-*.sh grep 'ues')
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ueransim-gnb
+  namespace: 5g-ran
+  labels: { app.kubernetes.io/name: ueransim-gnb }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: ueransim-gnb } }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: ueransim-gnb }
+      annotations:
+        # IP estática N2 sobre Multus. AJUSTA si cambias la subred N2.
+        k8s.v1.cni.cncf.io/networks: >-
+          [{"name":"n2-net","ips":["10.10.0.20/24"]}]
+    spec:
+      containers:
+        - name: gnb
+          image: towards5gs/ueransim-gnb:v3.2.6   # AJUSTA/pinnea por digest
+          command: ["/bin/sh","-c","nr-gnb -c /config/gnb.yaml"]
+          securityContext:
+            capabilities: { add: ["NET_ADMIN"] }
+          volumeMounts:
+            - { name: gnb-conf, mountPath: /config, readOnly: true }
+      volumes:
+        - name: gnb-conf
+          configMap: { name: ueransim-gnb-conf }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ueransim-ues
+  namespace: 5g-ran
+  labels: { app.kubernetes.io/name: ueransim-ue }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: ueransim-ue } }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: ueransim-ue }
+    spec:
+      containers:
+        - name: ue
+          image: towards5gs/ueransim-ue:v3.2.6    # AJUSTA/pinnea por digest
+          command: ["/bin/sh","-c","nr-ue -c /config/ue.yaml"]
+          securityContext:
+            privileged: true          # crea el TUN uesimtun0
+          volumeMounts:
+            - { name: ue-conf, mountPath: /config, readOnly: true }
+      volumes:
+        - name: ue-conf
+          configMap: { name: ueransim-ue-conf }
