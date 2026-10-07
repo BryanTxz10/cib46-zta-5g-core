@@ -1,7 +1,11 @@
 # gnb.yaml
 # Configuracion del gNB simulado con UERANSIM v3.2.6.
-# PLMN de prueba: MCC 999 / MNC 70. Interfaz N2 sobre la red Multus
-# 10.10.0.0/24 (worker2, namespace 5g-ran).
+# PLMN de prueba: MCC 999 / MNC 70.
+#
+# Lab v2: radio (RLS), N2 y N3 usan la IP del pod del gNB en la red de
+# Cilium. __POD_IP__ lo reemplaza el contenedor al arrancar (ver
+# bootstrap/manifests/ueransim.yaml). Antes era 10.10.0.20 sobre Multus
+# macvlan, un camino que Cilium no ve (las políticas no aplicaban a N2).
 
 mcc: '999'
 mnc: '70'
@@ -10,15 +14,16 @@ nci: '0x000000010'
 idLength: 32
 tac: 1
 
-linkIp: 10.10.0.20
-ngapIp: 10.10.0.20
-gtpIp: 10.10.0.20
+linkIp: __POD_IP__
+ngapIp: __POD_IP__
+gtpIp: __POD_IP__
 
-# Lista de AMF a los que este gNB se conecta.
-# amfConfigs.address debe resolver a la IP del pod/servicio AMF dentro
-# del namespace 5g-cp.
+# AMF por Service HEADLESS (resuelve a la IP del pod, SCTP pod->pod).
+# Cilium 1.15 no soporta SCTP sobre la VIP de un Service con KPR, por eso no
+# se usa open5gs-cp-amf-ngap (ver bootstrap/manifests/amf-n2-headless.yaml).
+# UERANSIM resuelve el nombre una vez al arrancar.
 amfConfigs:
-  - address: open5gs-cp-amf-ngap.5g-cp.svc.cluster.local
+  - address: amf-n2.5g-cp.svc.cluster.local
     port: 38412
 
 slices:

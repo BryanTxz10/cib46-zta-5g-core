@@ -24,6 +24,7 @@ helm upgrade --install cilium cilium/cilium \
   --set sctp.enabled=true \
   --set operator.replicas=1 \
   --set ipam.mode=cluster-pool \
+  --set ipam.operator.clusterPoolIPv4PodCIDRList="{${CILIUM_POD_CIDR}}" \
   --set hubble.enabled=true \
   --set hubble.relay.enabled=true \
   --set hubble.ui.enabled=true \

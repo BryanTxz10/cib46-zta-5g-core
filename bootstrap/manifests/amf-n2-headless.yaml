@@ -1,0 +1,33 @@
+# amf-n2-headless.yaml — Service HEADLESS para N2 (NGAP/SCTP 38412) del AMF.
+#
+# Por qué existe (lab v2):
+#   Cilium 1.15 soporta SCTP pod<->pod y políticas sobre SCTP, pero NO soporta
+#   SCTP a través de la VIP de un Service cuando kube-proxy está reemplazado
+#   (KPR). Ver Documentation/configuration/sctp.rst de Cilium v1.15.4
+#   ("Cilium does not support the following for SCTP: ... Policies for
+#   pod-to-VIP, KPR, BPF masquerading").
+#   Un Service headless (clusterIP: None) no tiene VIP: su nombre DNS resuelve
+#   directo a la IP del pod AMF, así el gNB abre SCTP pod->pod y la política
+#   c1/03-allow-gnb-to-amf-n2.yaml aplica sobre la identidad real del gNB.
+#
+# Nombre DNS: amf-n2.5g-cp.svc.cluster.local  (lo usa ueransim-config/gnb.yaml)
+# Si el pod del AMF se reinicia cambia de IP: reinicia también el gNB
+#   kubectl -n 5g-ran rollout restart deploy/ueransim-gnb
+apiVersion: v1
+kind: Service
+metadata:
+  name: amf-n2
+  namespace: 5g-cp
+  labels:
+    cib46.io/component: n2
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: amf
+    app.kubernetes.io/instance: open5gs-cp
+  ports:
+    - name: ngap
+      port: 38412
+      targetPort: 38412
+      protocol: SCTP

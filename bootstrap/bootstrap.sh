@@ -31,7 +31,8 @@ run_step() {
 run_step 00 00-prereqs.sh
 run_step 10 10-k3s.sh
 run_step 20 20-cilium.sh
-run_step 30 30-multus.sh
+# Lab v2: Multus es opcional (N2 va por Cilium). Actívalo con DEPLOY_MULTUS=1.
+if [ "${DEPLOY_MULTUS:-0}" = "1" ]; then run_step 30 30-multus.sh; else log "Omitiendo Multus (DEPLOY_MULTUS=0)"; fi
 run_step 40 40-metrics-server.sh
 run_step 50 50-namespaces.sh
 run_step 60 60-open5gs.sh

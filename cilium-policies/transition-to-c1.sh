@@ -8,6 +8,12 @@ set -euo pipefail
 LOG="c1_setup.txt"
 echo "=== TRANSICION A C1: $(date -u) ===" | tee "$LOG"
 
+# Lab v2: quitar el ancla de C0. Antes no se borraba y C1-C3 corrian encima
+# de ella (con la semantica vieja, un deny-all en los 3 namespaces).
+for ns in 5g-cp 5g-ran 5g-up; do
+  kubectl delete ciliumnetworkpolicy c0-allow-all-anchor -n "$ns" 2>/dev/null || true
+done
+
 kubectl apply -f c1/01-deny-ran-to-cp.yaml
 kubectl apply -f c1/02-allow-sbi-intra-core.yaml
 kubectl apply -f c1/03-allow-gnb-to-amf-n2.yaml

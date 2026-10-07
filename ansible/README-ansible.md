@@ -1,5 +1,9 @@
 # Guía desde cero: desplegar el testbed con Ansible
 
+> **Lab v2:** si partes de VMs vacías (crear VMs, red NAT, IP estática,
+> clonado, SSH), usa **`docs/guia-lab-desde-cero.md`**, que cubre todo de punta
+> a punta y usa este playbook. Este archivo queda como referencia de Ansible.
+>
 > Para alguien que **programa pero nunca usó Ansible**. Explica qué es, cómo
 > instalarlo, cómo conectar las máquinas y cómo lanzar el despliegue. Sigue los
 > pasos en orden.
@@ -120,10 +124,10 @@ master
 workers
 ```
 
-Edita también **`group_vars/all.yml`** y ajusta como mínimo:
-- `multus_master_iface` → el nombre de la interfaz de red N2 de los workers
-  (míralo en cada worker con `ip a`; suele ser `eth1`, `ens4`, etc.).
-- `open5gs_chart_version` → la versión del chart que uses.
+Revisa **`group_vars/all.yml`**. Con la topología de la guía de lab v2 no
+hace falta cambiar nada (Multus está apagado y el chart de Open5GS ya está
+fijado). Solo si activas `deploy_multus: true` tienes que poner en
+`multus_master_iface` la 2.a interfaz de los workers (míralo con `ip -br a`).
 
 ---
 
@@ -168,13 +172,11 @@ Las condiciones son conjuntos declarativos de políticas. Necesitas `kustomize`
 (o donde tengas el `KUBECONFIG`):
 
 ```bash
-# Instalar kustomize si no lo tienes:
-curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-sudo mv kustomize /usr/local/bin/
-
-# Transición limpia a una condición (ej. C1):
+# Transición limpia a una condición (ej. C1). kubectl ya trae kustomize:
+make condition C=c1
+# equivale a:
 kubectl delete ciliumnetworkpolicy -A -l cib46.io/managed=true 2>/dev/null || true
-kustomize build --load-restrictor=LoadRestrictionsNone cilium-policies/conditions/c1 | kubectl apply -f -
+kubectl kustomize --load-restrictor=LoadRestrictionsNone cilium-policies/conditions/c1 | kubectl apply -f -
 ```
 Cambia `c1` por `c0`, `c2` o `c3`. Para **C2** recuerda el paso previo de
 etiquetar las NF (`bash cilium-policies/c2/02-patch-identity-labels.sh`) o activar

@@ -13,10 +13,12 @@ Telecomunicaciones (UNI-FIEE).
 | Componente | Versión |
 |---|---|
 | k3s (Kubernetes) | v1.28.5 |
-| Open5GS | v2.7 |
+| Open5GS | v2.7 (lab v2: 2.7.5, chart Gradiant 2.3.4) |
 | Cilium (CNI) | v1.15.4 |
 | UERANSIM | v3.2.6 |
-| SPIRE | v1.9.0 |
+| SPIRE | v1.9.0 (opcional, sin enforcement) |
+
+**Montar el lab desde VMs vacías:** [`docs/guia-lab-desde-cero.md`](docs/guia-lab-desde-cero.md)
 
 ## Estructura del repositorio
 
@@ -25,7 +27,7 @@ Telecomunicaciones (UNI-FIEE).
 ├── ansible/             # Despliegue declarativo con Ansible (recomendado) + guía desde cero
 ├── bootstrap/           # Despliegue con bash (respaldo), checks y análisis estadístico
 ├── cilium-policies/     # CiliumNetworkPolicy por condición + overlays Kustomize (conditions/)
-├── helm-values/         # values.yaml del chart towards5gs-helm
+├── helm-values/         # values.yaml del chart Open5GS (Gradiant)
 ├── attack-scripts/      # Scripts de ejecución de los vectores A1, A2, A2', A2'', A3
 ├── spire-config/         # Configuración de SPIRE Server y Agent
 ├── monitoring/          # Consultas de monitoreo de recursos del AMF

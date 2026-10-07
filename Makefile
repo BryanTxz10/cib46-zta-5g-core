@@ -8,7 +8,7 @@ SHELL := /bin/bash
 # ---- Infraestructura (Ansible = recomendado; bash = respaldo) --------------
 .PHONY: ansible-up
 ansible-up: ## Despliega con Ansible (recomendado). Corre en ansible/
-	cd ansible && ansible-playbook site.yml
+	cd ansible && ansible-playbook site.yml -K
 
 .PHONY: up
 up: ## Despliega con bash (respaldo): k3s -> Cilium -> ... -> C0
@@ -36,7 +36,8 @@ c3: ## Transición a C3 (autorización L7 por rol)
 .PHONY: condition
 condition: ## Transición declarativa con Kustomize (uso: make condition C=c1)
 	kubectl delete ciliumnetworkpolicy -A -l cib46.io/managed=true 2>/dev/null || true
-	kustomize build --load-restrictor=LoadRestrictionsNone cilium-policies/conditions/$(C) | kubectl apply -f -
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone cilium-policies/conditions/$(C) | kubectl apply -f -
+	kubectl get ciliumnetworkpolicies -A
 
 # ---- Verificación (RM-01: plano de control, no ICMP) -----------------------
 .PHONY: smoke
@@ -61,8 +62,20 @@ lint: ## Chequeo de sintaxis de todos los scripts bash
 
 .PHONY: status
 status: ## Estado rápido del testbed
-	kubectl get pods -A | grep -E '5g-|cilium|multus|spire|metrics' || true
+	kubectl get nodes -o wide || true
+	kubectl get pods -A -o wide | grep -E '5g-|cilium|multus|spire|metrics' || true
 	kubectl get ciliumnetworkpolicies -A || true
+
+.PHONY: subscribers
+subscribers: ## Re-inserta el suscriptor (tras reinicio de MongoDB)
+	bash helm-values/insert-subscribers.sh
+
+.PHONY: ran-restart
+ran-restart: ## Reinicia gNB y luego UE (tras reinicio del AMF)
+	kubectl -n 5g-ran rollout restart deployment ueransim-gnb
+	kubectl -n 5g-ran rollout status deployment ueransim-gnb --timeout=120s
+	kubectl -n 5g-ran rollout restart deployment ueransim-ues
+	kubectl -n 5g-ran rollout status deployment ueransim-ues --timeout=120s
 
 .PHONY: help
 help: ## Muestra esta ayuda
