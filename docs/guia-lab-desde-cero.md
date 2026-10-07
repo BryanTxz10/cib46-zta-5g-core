@@ -1,8 +1,9 @@
 # Guía paso a paso: levantar el lab CIB46 desde cero (lab v2)
 
-> De **VMs vacías** a un **core 5G SA en Kubernetes con Cilium**, con el UE
-> registrado y la condición **C0** verificada. Pensado para hacerlo copiando y
-> pegando, sin saltarse nada.
+> De **VMs vacías** a un **core 5G SA en Kubernetes con Cilium y SPIRE**, con
+> el UE registrado, la condición **C0** verificada y la **autenticación mutua
+> con SPIRE** comprobada. Pensado para hacerlo copiando y pegando, sin
+> saltarse nada.
 >
 > Hipervisor: **VMware Workstation Pro** (el que usaste en la tesis). Si vas a
 > usar VirtualBox o un Mac con chip Apple, para en la sección 2 y revisa la
@@ -27,10 +28,11 @@
 9. [Desplegar todo con un comando](#9-desplegar-todo-con-un-comando)
 10. [Verificar que el core 5G funciona](#10-verificar-que-el-core-5g-funciona)
 11. [Aplicar C0 y la prueba de humo](#11-aplicar-c0-y-la-prueba-de-humo)
-12. [Snapshots, apagar y volver a encender](#12-snapshots-apagar-y-volver-a-encender)
-13. [Problemas frecuentes](#13-problemas-frecuentes)
-14. [Qué cambió en el repo (lab v2) y por qué](#14-qué-cambió-en-el-repo-lab-v2-y-por-qué)
-15. [Antes de medir: revisar las políticas C1 a C3](#15-antes-de-medir-revisar-las-políticas-c1-a-c3)
+12. [SPIRE en acción: autenticación mutua](#12-spire-en-acción-autenticación-mutua)
+13. [Snapshots, apagar y volver a encender](#13-snapshots-apagar-y-volver-a-encender)
+14. [Problemas frecuentes](#14-problemas-frecuentes)
+15. [Qué cambió en el repo (lab v2) y por qué](#15-qué-cambió-en-el-repo-lab-v2-y-por-qué)
+16. [Antes de medir: revisar las políticas C1 a C3](#16-antes-de-medir-revisar-las-políticas-c1-a-c3)
 
 ---
 
@@ -47,11 +49,18 @@
    └────────────────────────┴────────────────────────┴────────────────────────┘
 
    Pods (red de Cilium 10.42.0.0/16, túnel VXLAN entre nodos)
-     5g-cp  : nrf scp amf smf upf ausf udm udr pcf bsf nssf mongodb webui populate
-     5g-ran : ueransim-gnb  ueransim-ues   (más adelante, los pods atacantes)
+     5g-cp        : nrf scp amf smf upf ausf udm udr pcf bsf nssf mongodb webui populate
+     5g-ran       : ueransim-gnb  ueransim-ues   (más adelante, los pods atacantes)
+     cilium-spire : spire-server (1)  +  spire-agent (uno por nodo)
 
    N2 (SCTP 38412)  gNB -> AMF   y   N3 (GTP-U 2152)  gNB -> UPF
    viajan pod a pod por Cilium, así las políticas C1 a C3 los ven.
+
+   SPIRE (trust domain cib46.5gcore.local) emite un SVID por cada identidad de
+   Cilium: spiffe://cib46.5gcore.local/identity/<id>. Una política con
+   "authentication: required" obliga a los agentes de Cilium de los dos nodos
+   a hacer un handshake mTLS con esos SVID antes de dejar pasar el tráfico.
+   Open5GS no se entera: no necesita soportar SPIFFE.
 ```
 
 | Nodo | Hostname | IP | vCPU | RAM | Disco |
@@ -272,7 +281,7 @@ ping -c 3 github.com             # DNS
 
 Si `ping 1.1.1.1` falla pero el gateway responde, prueba
 `curl -I https://github.com` (algunas redes bloquean ping hacia afuera). Si
-falla todo, revisa la sección 2.1 y la tabla de problemas (sección 13).
+falla todo, revisa la sección 2.1 y la tabla de problemas (sección 14).
 
 ### 5.2 Actualizar y paquetes base
 
@@ -504,7 +513,9 @@ node-worker2 ansible_host=192.168.100.12 ansible_user=cib46
 
 En `ansible/group_vars/all.yml` no hace falta cambiar nada. Lo importante que
 fija: k3s `v1.28.5+k3s1`, Cilium `1.15.4`, chart de Open5GS de Gradiant
-`2.3.4` (Open5GS 2.7.5), `deploy_multus: false`, `deploy_spire: false`.
+`2.3.4` (Open5GS 2.7.5), `deploy_multus: false`, `deploy_spire: true` con
+`spire_trust_domain: "cib46.5gcore.local"` (el mismo trust domain de la
+tesis).
 
 ### 8.5 Probar la conexión
 
@@ -535,7 +546,7 @@ Qué hace, en orden (tarda entre 15 y 30 minutos según tu internet):
 | Play 1 | Paquetes, SCTP, swap off en los 3 nodos | internet / `apt` |
 | Play 2 | k3s server en el master (sin flannel ni kube-proxy) | `sudo journalctl -u k3s -n 50` |
 | Play 3 | k3s agent en los 2 workers | `sudo journalctl -u k3s-agent -n 50` en el worker |
-| Play 4 | Helm, **Cilium** (KPR, L7, SCTP, Hubble), CLIs `cilium` y `hubble`, metrics-server, **Open5GS** (espera hasta 15 min), suscriptor, Service N2, **gNB y UE** | sección 13 |
+| Play 4 | Helm, **Cilium** (KPR, L7, SCTP, Hubble) con **SPIRE** integrado (espera al server, healthcheck y comprueba que cada identidad tenga su SVID), CLIs `cilium` y `hubble`, metrics-server, **Open5GS** (espera hasta 15 min), suscriptor, Service N2, **gNB y UE** | sección 14 |
 
 Al final debe salir un `PLAY RECAP` con **`failed=0`** en los tres nodos.
 
@@ -545,9 +556,14 @@ rehace. También puedes repetir solo una parte:
 
 ```bash
 ansible-playbook site.yml -K --tags cilium
+ansible-playbook site.yml -K --tags spire
 ansible-playbook site.yml -K --tags open5gs
 ansible-playbook site.yml -K --tags ueransim
 ```
+
+Si ya habías desplegado el lab sin SPIRE, basta con
+`ansible-playbook site.yml -K --tags cilium,spire`: actualiza Cilium, espera a
+SPIRE y reinicia operador y agentes si hace falta.
 
 ---
 
@@ -571,7 +587,61 @@ cilium status
 Debe decir `Cilium: OK`, `Operator: OK`, `Hubble Relay: OK` y
 `Cluster Pods: N/N managed by Cilium`.
 
-### 10.2 Pods del core
+### 10.2 SPIRE
+
+Para no escribir la ruta completa cada vez:
+
+```bash
+alias spire='kubectl -n cilium-spire exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server'
+echo "alias spire='kubectl -n cilium-spire exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server'" >> ~/.bashrc
+```
+
+1. Pods: un `spire-server-0` (2/2) y un `spire-agent` por nodo (3).
+
+   ```bash
+   kubectl -n cilium-spire get pods -o wide
+   ```
+
+2. El servidor está sano:
+
+   ```bash
+   spire healthcheck                # Server is healthy.
+   ```
+
+3. Los 3 agentes están atestados (con tokens proyectados de Kubernetes,
+   `k8s_psat`):
+
+   ```bash
+   spire agent list                 # Found 3 attested agents
+   ```
+
+4. El agente y el operador de Cilium tienen su identidad delegada:
+
+   ```bash
+   spire entry show -parentID spiffe://cib46.5gcore.local/ns/cilium-spire/sa/spire-agent
+   ```
+
+   Deben salir `spiffe://cib46.5gcore.local/cilium-agent` y
+   `spiffe://cib46.5gcore.local/cilium-operator`.
+
+5. Cada identidad de Cilium tiene su entrada SPIFFE. Ejemplo con el AMF:
+
+   ```bash
+   AMF_ID=$(kubectl -n 5g-cp get cep -l app.kubernetes.io/name=amf -o jsonpath='{.items[0].status.identity.id}')
+   echo $AMF_ID
+   spire entry show -spiffeID spiffe://cib46.5gcore.local/identity/$AMF_ID
+   ```
+
+   Sale una entrada con `Parent ID: spiffe://cib46.5gcore.local/cilium-operator`
+   y `Selector: cilium:mutual-auth`: el operador de Cilium la registró solo.
+   Puedes comparar el total de entradas
+   (`spire entry show -selector cilium:mutual-auth | head -1`) con
+   `kubectl get ciliumidentities --no-headers | wc -l`.
+
+Todavía no se aplica nada: SPIRE solo actúa cuando una política pide
+`authentication: required` (sección 12).
+
+### 10.3 Pods del core
 
 ```bash
 kubectl -n 5g-cp get pods -o wide
@@ -581,7 +651,7 @@ Todos en `Running` (y `1/1`): `open5gs-cp-amf`, `-ausf`, `-bsf`, `-mongodb`,
 `-nrf`, `-nssf`, `-pcf`, `-populate`, `-scp`, `-smf`, `-udm`, `-udr`, `-upf`,
 `-webui`.
 
-### 10.3 gNB conectado al AMF (N2)
+### 10.4 gNB conectado al AMF (N2)
 
 ```bash
 kubectl -n 5g-ran logs deploy/ueransim-gnb | tail -n 20
@@ -594,7 +664,7 @@ gNB con IP 10.42.x.x; AMF en 10.42.y.y
 [ngap] [info] NG Setup procedure is successful
 ```
 
-### 10.4 UE registrado y con sesión PDU
+### 10.5 UE registrado y con sesión PDU
 
 ```bash
 kubectl -n 5g-ran logs deploy/ueransim-ues | tail -n 30
@@ -608,7 +678,7 @@ Busca:
 [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.45.0.2] is up.
 ```
 
-### 10.5 Tráfico real por el plano de usuario
+### 10.6 Tráfico real por el plano de usuario
 
 ```bash
 UE=$(kubectl -n 5g-ran get pod -l app.kubernetes.io/name=ueransim-ue -o jsonpath='{.items[0].metadata.name}')
@@ -622,7 +692,7 @@ kubectl -n 5g-ran exec $UE -- curl -s --interface uesimtun0 -o /dev/null -w "%{h
 devolviendo `200`. Ese tráfico va UE → gNB → (GTP-U por Cilium) → UPF →
 internet. **Si llegas aquí, el core 5G funciona.**
 
-### 10.6 Ver los flujos con Hubble (te servirá para la charla)
+### 10.7 Ver los flujos con Hubble (te servirá para la charla)
 
 ```bash
 cilium hubble port-forward &
@@ -674,11 +744,143 @@ Resultado esperado al final:
 
 Para cambiar de condición usa siempre `make condition C=c1` (c2, c3). Ese
 camino borra primero todas las políticas del experimento y aplica las de la
-condición, así no se acumula estado. Antes de usar C1 a C3 lee la sección 15.
+condición, así no se acumula estado. Antes de usar C1 a C3 lee la sección 16.
 
 ---
 
-## 12. Snapshots, apagar y volver a encender
+## 12. SPIRE en acción: autenticación mutua
+
+Dos partes: primero una **demo aislada** que comprueba que SPIRE hace
+enforcement real en tu clúster (y que te sirve tal cual como demo en el KCD),
+y después cómo usarlo **en el core 5G** con las condiciones `c2-spire` y
+`c3-spire`.
+
+### 12.1 Demo aislada entre dos nodos
+
+Todo en **node-master**, desde `~/cib46-zta-5g-core`. Necesitas Hubble
+escuchando (si no lo dejaste corriendo en la sección 10.7):
+
+```bash
+cilium hubble port-forward &
+```
+
+**Preparar:** un servidor `echo` en node-worker1 y un `client` en
+node-worker2, así el handshake ocurre entre nodos.
+
+```bash
+kubectl apply -f cilium-policies/spire-demo/00-workloads.yaml
+kubectl -n spire-demo wait --for=condition=Ready pod --all --timeout=180s
+kubectl -n spire-demo get pods -o wide
+```
+
+**Paso 1, identidad y L7 sin SPIRE:**
+
+```bash
+kubectl apply -f cilium-policies/spire-demo/01-policy-sin-auth.yaml
+kubectl -n spire-demo exec client -- curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" http://echo:8080/hostname
+kubectl -n spire-demo exec client -- curl -s -o /dev/null -w "%{http_code}\n" http://echo:8080/clientip
+```
+
+Esperado: `200` en `/hostname` y `403` en `/clientip` (la regla L7 solo
+permite `GET /hostname`).
+
+**Paso 2, la misma política con `authentication: required`.** Abre una
+segunda terminal SSH en el master y deja Hubble mirando los descartes:
+
+```bash
+hubble observe -n spire-demo --verdict DROPPED -f
+```
+
+En la primera terminal:
+
+```bash
+kubectl apply -f cilium-policies/spire-demo/02-policy-con-auth.yaml
+kubectl -n spire-demo exec client -- curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" http://echo:8080/hostname
+kubectl -n spire-demo exec client -- curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" http://echo:8080/hostname
+```
+
+Qué tienes que ver:
+
+- En Hubble, el primer paquete `client → echo` sale `DROPPED` con motivo
+  **Authentication required** (según la versión de la CLI puede aparecer como
+  `AUTH_REQUIRED`). Es el datapath eBPF reteniendo el tráfico hasta que haya
+  autenticación.
+- El primer `curl` da `200` pero tarda alrededor de **1 segundo** (TCP
+  reintenta el SYN después del handshake mTLS entre los agentes). El segundo
+  da `200` en milisegundos: la autenticación queda en caché para ese par de
+  identidades.
+
+Ver la autenticación guardada en el datapath de cada nodo:
+
+```bash
+for p in $(kubectl -n kube-system get pod -l k8s-app=cilium -o name); do
+  echo "== $p"; kubectl -n kube-system exec $p -c cilium-agent -- cilium-dbg bpf auth list
+done
+```
+
+En el nodo del `echo` (node-worker1) aparece una entrada con la identidad del
+cliente, la del servidor, `spire` y la fecha de expiración (la del SVID).
+
+Comprobar los SVID de las dos identidades:
+
+```bash
+CLIENT_ID=$(kubectl -n spire-demo get cep client -o jsonpath='{.status.identity.id}')
+ECHO_ID=$(kubectl -n spire-demo get cep -l app=echo -o jsonpath='{.items[0].status.identity.id}')
+spire entry show -spiffeID spiffe://cib46.5gcore.local/identity/$CLIENT_ID
+spire entry show -spiffeID spiffe://cib46.5gcore.local/identity/$ECHO_ID
+```
+
+**Paso 3, el límite honesto: un impostor que copia los labels.**
+
+```bash
+kubectl apply -f cilium-policies/spire-demo/03-impostor.yaml
+kubectl -n spire-demo wait --for=condition=Ready pod/impostor --timeout=120s
+kubectl -n spire-demo get cep client impostor -o custom-columns=POD:.metadata.name,IDENTIDAD:.status.identity.id
+kubectl -n spire-demo exec impostor -- curl -s -o /dev/null -w "%{http_code}\n" http://echo:8080/hostname
+```
+
+El impostor tiene **la misma identidad numérica** que el cliente y su `curl`
+da **200**. En Cilium el SPIFFE ID se deriva de la identidad, y la identidad
+de los labels: quien copie los labels obtiene el mismo SVID. SPIRE autentica
+identidades entre nodos, **no** vuelve infalsificable el label. Eso lo cierra
+el control de admisión (`bootstrap/admission/`, Kyverno, RM-05). Son tres
+capas distintas y esta demo las separa muy bien en una charla:
+
+| Capa | Pregunta | Quién la responde |
+|---|---|---|
+| Admisión | ¿Puede existir un pod con esta identidad? | Kyverno en el API server |
+| Autenticación | ¿El tráfico viene de verdad de esa identidad? | Cilium + SPIRE (mTLS entre agentes) |
+| Autorización | ¿Qué puede hacer esa identidad? | Política L7 (Envoy) |
+
+**Limpiar:**
+
+```bash
+kubectl delete ns spire-demo
+```
+
+### 12.2 SPIRE en el core 5G: condiciones `c2-spire` y `c3-spire`
+
+Son C2 y C3 con `authentication: required` en las reglas que permiten la SBI
+hacia el NRF (identidad + autenticación mutua + L7). Se aplican igual que el
+resto:
+
+```bash
+cd ~/cib46-zta-5g-core
+bash cilium-policies/c2/02-patch-identity-labels.sh   # etiqueta las NF (reinicia sus pods)
+make ran-restart                                     # el AMF cambió de IP: reinicia gNB y UE
+make condition C=c2-spire
+make smoke C=C2-SPIRE
+hubble observe -n 5g-cp --verdict DROPPED --last 50
+```
+
+`make condition C=c3-spire` funciona igual para C3.
+
+> **Importante:** `c2-spire` y `c3-spire` heredan las políticas base de C1 a
+> C3, que todavía tienen los problemas de la sección 16. Si el smoke falla,
+> prueba primero `make condition C=c2` (sin SPIRE): si también falla, el
+> problema está en la base, no en SPIRE. Antes de medir corregimos la base.
+
+## 13. Snapshots, apagar y volver a encender
 
 ### 12.1 Snapshot del testbed funcionando
 
@@ -716,7 +918,7 @@ make ran-restart      # reinicia gNB y luego UE (el gNB resuelve la IP del AMF a
 
 ---
 
-## 13. Problemas frecuentes
+## 14. Problemas frecuentes
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|
@@ -737,6 +939,10 @@ make ran-restart      # reinicia gNB y luego UE (el gNB resuelve la IP del AMF a
 | UE: falla autenticación / *Registration reject* | Falta el suscriptor en MongoDB | `make subscribers` y luego `kubectl -n 5g-ran rollout restart deploy/ueransim-ues` |
 | `uesimtun0` existe pero el ping a 8.8.8.8 falla | NAT del UPF o salida a internet del nodo | `kubectl -n 5g-cp logs deploy/open5gs-cp-upf` y prueba internet desde el nodo |
 | `make smoke` da `sbi=000` | El curl desde el AMF no llega al NRF | `kubectl -n 5g-cp get svc | grep nrf-sbi` y revisa la condición aplicada |
+| `spire-server-0` en `Pending` | Su volumen (PVC) no se crea | `kubectl -n cilium-spire get pvc` y `kubectl -n kube-system get pods -l app=local-path-provisioner` (k3s trae ese provisionador; necesita Cilium arriba) |
+| `spire agent list` muestra menos de 3 agentes | Un `spire-agent` no se atestó | `kubectl -n cilium-spire logs ds/spire-agent` (o el pod de ese nodo) |
+| `spire entry show -selector cilium:mutual-auth` dice *Found 0 entries* | Cilium arrancó antes que SPIRE | `ansible-playbook site.yml -K --tags spire` (reinicia operador y agentes) |
+| Con `authentication: required` el `curl` se queda colgado o falla | El handshake entre agentes no se completa | Puerto TCP 4250 entre nodos; `cilium config set debug true` y `kubectl -n kube-system logs <pod-cilium> -c cilium-agent | grep -i auth` |
 
 Comandos que siempre ayudan:
 
@@ -749,7 +955,7 @@ kubectl -n <ns> logs <pod> --previous      # logs del intento anterior si se rei
 
 ---
 
-## 14. Qué cambió en el repo (lab v2) y por qué
+## 15. Qué cambió en el repo (lab v2) y por qué
 
 Al revisar la rama `revision-metodologica-automatizacion` contra las fuentes
 encontré cosas que habrían roto el despliegue o la validez del experimento.
@@ -769,10 +975,12 @@ La rama `lab-v2` las corrige:
 | `ansible.cfg` | `stdout_callback = yaml` ya no existe en Ansible reciente | `callback_result_format = yaml` |
 | `site.yml` | Sin `--node-ip`, pool de pods de Cilium por defecto `10.0.0.0/8` | `--node-ip` explícito y pool `10.42.0.0/16` |
 | `Makefile` | Necesitaba instalar `kustomize` aparte | Usa `kubectl kustomize`; nuevos `make subscribers` y `make ran-restart` |
+| SPIRE (`spire-config/`, `manifests/spire.yaml`) | El SPIRE autónomo de la v1 no podía funcionar: el server solo aceptaba agentes del SA `spire:spire-agent` pero el agente corría en `5g-cp`, no había entradas de registro y ninguna política usaba SVIDs | SPIRE integrado en Cilium (mutual authentication), trust domain `cib46.5gcore.local`, verificado por el playbook. Archivos v1 marcados como legado |
+| `conditions/c2-spire`, `c3-spire`, `spire-demo/` (nuevos) | Faltaba una forma de usar SPIRE en las políticas | Overlays con `authentication: required` y demo aislada entre nodos |
 
 ---
 
-## 15. Antes de medir: revisar las políticas C1 a C3
+## 16. Antes de medir: revisar las políticas C1 a C3
 
 Esto **no** es parte del montaje, pero hay que resolverlo antes de recolectar
 datos del protocolo v2 (y antes de afirmar resultados en el KCD). Lo dejo
@@ -794,8 +1002,32 @@ anotado, no lo cambié todavía porque son decisiones de diseño del experimento
 4. **El ancla de C0 de la v1 era deny-all y no se borraba** al pasar a C1
    a C3. Hay que revisar qué resultados de la v1 afecta antes de reutilizar
    cualquier número.
-5. **Versiones:** Cilium 1.15 y k3s 1.28 ya no tienen soporte. En el KCD es
+5. **C2 no incluye `02-allow-sbi-intra-core`.** Como `01` selecciona todos los
+   pods de `5g-cp`, en C2 y C3 la SBI entre NF que no va al NRF (AMF → SCP,
+   SCP → AUSF, etc.) queda sin permiso explícito. Mismo efecto que el punto 3:
+   puede funcionar por conntrack y romperse tras un reset limpio. Afecta
+   también a `c2-spire` y `c3-spire`.
+6. **Versiones:** Cilium 1.15 y k3s 1.28 ya no tienen soporte. En el KCD es
    probable que pregunten si lo de SCTP sigue igual en el Cilium actual.
+
+Y sobre SPIRE, para no sobreafirmar ni en la tesis ni en el KCD:
+
+7. **SPIRE no vuelve infalsificable el label** (demo, paso 3). El SPIFFE ID se
+   deriva de la identidad de Cilium, que sale de los labels. RM-05 se cierra
+   con admisión (Kyverno), no con SPIRE.
+8. **Es por par de identidades, no por conexión.** Una vez autenticado el
+   par, todas sus conexiones pasan hasta que expira el SVID. La
+   autenticación por conexión figura como pendiente en la hoja de ruta de
+   Cilium.
+9. **No cifra.** La autenticación mutua de Cilium no cifra el tráfico; para eso
+   Cilium recomienda WireGuard o IPsec, y la integración con WireGuard figura
+   como pendiente en 1.15.
+10. **El primer paquete se descarta** hasta completar el handshake. Para
+    OVERHEAD-L7 separa el arranque en frío (primer contacto de un par de
+    identidades) del estado caliente. El costo en frío es en sí mismo una
+    métrica interesante para la charla.
+11. **Es beta en Cilium 1.15** y usa SPIRE 1.8.5 (lo fija el chart; la tesis
+    v1 decía 1.9.0). Decláralo así.
 
 Cuando el lab esté arriba y en C0, el siguiente paso es corregir estas
 políticas y validarlas con Hubble (ver los `DROPPED` donde deben estar).

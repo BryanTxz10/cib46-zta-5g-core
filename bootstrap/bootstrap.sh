@@ -15,7 +15,7 @@ FROM="00"; SKIP_SPIRE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --from) FROM="$2"; shift 2 ;;
-    --skip-spire) SKIP_SPIRE=1; shift ;;
+    --skip-spire) SKIP_SPIRE=1; export DEPLOY_SPIRE=0; shift ;;
     *) die "Opción desconocida: $1" ;;
   esac
 done

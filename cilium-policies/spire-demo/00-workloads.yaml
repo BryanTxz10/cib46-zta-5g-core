@@ -1,0 +1,60 @@
+# 00-workloads.yaml — Demo aislada de autenticación mutua Cilium + SPIRE.
+#
+# Independiente del core 5G: sirve para comprobar que SPIRE hace enforcement
+# real en TU clúster antes de usarlo en C2/C3, y como demo en vivo (KCD).
+# Adaptada del ejemplo oficial de Cilium 1.15 (mutual-auth-example.yaml).
+#
+#   echo    -> node-worker1  (servidor HTTP, agnhost netexec :8080)
+#   client  -> node-worker2  (cliente legítimo, app=client)
+#   => el handshake mTLS ocurre ENTRE NODOS, que es el caso interesante.
+#
+# Los nodeSelector usan los hostnames de docs/guia-lab-desde-cero.md.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spire-demo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo
+  namespace: spire-demo
+  labels: { app: echo }
+spec:
+  selector: { app: echo }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080, protocol: TCP }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo
+  namespace: spire-demo
+  labels: { app: echo }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: echo } }
+  template:
+    metadata:
+      labels: { app: echo }
+    spec:
+      nodeSelector: { kubernetes.io/hostname: node-worker1 }
+      containers:
+        - name: echo
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          args: ["netexec", "--http-port=8080"]
+          ports: [{ containerPort: 8080 }]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+  namespace: spire-demo
+  labels: { app: client }
+spec:
+  nodeSelector: { kubernetes.io/hostname: node-worker2 }
+  containers:
+    - name: netshoot
+      image: nicolaka/netshoot:v0.13
+      command: ["sleep", "infinity"]

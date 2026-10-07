@@ -1,0 +1,29 @@
+# Condición C3-SPIRE — C3 + autenticación mutua con SPIRE (lab v2).
+#
+# Igual que C3 (autorización L7 por rol en el NRF) pero las dos reglas de
+# ingress (SCP con escritura, resto de NF solo lectura) exigen además
+#   authentication: { mode: required }
+# Orden de evaluación para un paquete hacia el NRF:
+#   identidad (eBPF) -> autenticación mutua SPIRE (handshake entre agentes)
+#   -> método/ruta HTTP (Envoy).
+#
+# Aplicar:  make condition C=c3-spire
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../c3
+patches:
+  - target:
+      group: cilium.io
+      version: v2
+      kind: CiliumNetworkPolicy
+      name: allow-sbi-rbac-c3
+    patch: |-
+      - op: add
+        path: /spec/ingress/0/authentication
+        value:
+          mode: required
+      - op: add
+        path: /spec/ingress/1/authentication
+        value:
+          mode: required

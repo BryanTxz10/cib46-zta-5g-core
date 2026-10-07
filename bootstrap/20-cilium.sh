@@ -13,8 +13,16 @@ need helm
 helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
 helm repo update cilium >/dev/null
 
+# SPIRE integrado (mutual authentication). Se desactiva con DEPLOY_SPIRE=0.
+SPIRE_ARGS=()
+if [ "${DEPLOY_SPIRE}" = "1" ]; then
+  SPIRE_ARGS=(--set authentication.mutual.spire.enabled=true
+              --set authentication.mutual.spire.install.enabled=true
+              --set authentication.mutual.spire.trustDomain="${SPIRE_TRUST_DOMAIN}")
+fi
+
 log "Instalando/actualizando Cilium ${CILIUM_VERSION}..."
-helm upgrade --install cilium cilium/cilium \
+helm upgrade --install cilium cilium/cilium "${SPIRE_ARGS[@]}" \
   --version "${CILIUM_VERSION}" \
   --namespace kube-system \
   --set kubeProxyReplacement=true \

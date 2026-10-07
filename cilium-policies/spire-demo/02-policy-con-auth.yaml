@@ -1,0 +1,24 @@
+# 02-policy-con-auth.yaml — Paso 2: la MISMA política + autenticación mutua.
+# Mismo nombre que el paso 1: kubectl apply la reemplaza.
+# Ahora el primer paquete de cada par de identidades se descarta con motivo
+# "Authentication required" hasta que los agentes de Cilium de node-worker2 y
+# node-worker1 completan el handshake mTLS con los SVID de SPIRE.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: echo-ingress
+  namespace: spire-demo
+spec:
+  endpointSelector:
+    matchLabels: { app: echo }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app: client }
+      authentication:
+        mode: required
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+          rules:
+            http:
+              - { method: "GET", path: "/hostname" }

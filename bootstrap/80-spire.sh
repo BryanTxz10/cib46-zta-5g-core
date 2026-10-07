@@ -1,28 +1,36 @@
 #!/usr/bin/env bash
-# 80-spire.sh — despliega SPIRE (server + agent) usando las configuraciones del
-# repo (spire-config/*.conf) como ConfigMaps. Idempotente.
+# 80-spire.sh — verifica SPIRE integrado en Cilium (lab v2). Idempotente.
 #
-# Coherente con la documentación del propio SPIRE en el repo: se despliega por
-# completitud/trazabilidad (H10/H21); NO ejerce enforcement. Opcional: puedes
-# saltar este paso sin afectar las métricas de seguridad (C0-C3 dependen de
-# Cilium, no de SPIRE).
+# Lab v2: SPIRE ya NO se despliega aparte. Lo instala Cilium (20-cilium.sh con
+# DEPLOY_SPIRE=1) en el namespace cilium-spire, y el operador de Cilium
+# registra una entrada SPIFFE por identidad. Este paso solo espera y verifica,
+# y reinicia operador/agentes si aún no hay entradas (como pide la doc de
+# Cilium al activar mutual authentication).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 export KUBECONFIG="${KUBECONFIG:-${HOME}/.kube/config}"
 
-SERVER_CONF="${BOOTSTRAP_DIR}/../spire-config/server.conf"
-AGENT_CONF="${BOOTSTRAP_DIR}/../spire-config/agent.conf"
-[ -f "$SERVER_CONF" ] && [ -f "$AGENT_CONF" ] || die "Faltan spire-config/*.conf"
+if [ "${DEPLOY_SPIRE}" != "1" ]; then
+  warn "DEPLOY_SPIRE=0: SPIRE desactivado, nada que verificar."; exit 0
+fi
 
-log "Creando ConfigMaps de SPIRE desde spire-config/*.conf..."
-kubectl -n "${NS_CP}" create configmap spire-server-conf \
-  --from-file=server.conf="$SERVER_CONF" \
-  --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n "${NS_CP}" create configmap spire-agent-conf \
-  --from-file=agent.conf="$AGENT_CONF" \
-  --dry-run=client -o yaml | kubectl apply -f -
+SS() { kubectl -n cilium-spire exec spire-server-0 -c spire-server -- /opt/spire/bin/spire-server "$@"; }
 
-apply "${BOOTSTRAP_DIR}/manifests/spire.yaml"
-kubectl -n "${NS_CP}" rollout status statefulset/spire-server --timeout=180s || \
-  warn "spire-server no llegó a Ready; no bloquea el experimento (SPIRE no hace enforcement)."
-ok "SPIRE desplegado (sin enforcement, por trazabilidad)."
+wait_rollout statefulset spire-server cilium-spire 600s
+wait_rollout daemonset spire-agent cilium-spire 300s
+
+for _ in $(seq 1 20); do SS healthcheck 2>/dev/null | grep -q 'Server is healthy' && break; sleep 6; done
+SS healthcheck
+
+if ! SS entry show -selector cilium:mutual-auth 2>/dev/null | grep -qE 'Found [1-9]'; then
+  warn "SPIRE sin entradas de Cilium todavía: reinicio operador y agentes."
+  kubectl -n kube-system rollout restart deployment/cilium-operator
+  kubectl -n kube-system rollout restart daemonset/cilium
+  wait_rollout deployment cilium-operator kube-system 300s
+  wait_rollout daemonset cilium kube-system 300s
+fi
+
+for _ in $(seq 1 20); do SS entry show -selector cilium:mutual-auth 2>/dev/null | grep -qE 'Found [1-9]' && break; sleep 6; done
+SS agent list | grep -E 'Found|SPIFFE ID'
+SS entry show -selector cilium:mutual-auth | head -1
+ok "SPIRE integrado en Cilium operativo (trust domain ${SPIRE_TRUST_DOMAIN})."

@@ -18,6 +18,10 @@
 #     políticas C1-C3 ven el tráfico N2. El gNB llega al AMF por un Service
 #     headless (Cilium 1.15 no soporta SCTP sobre VIP con KPR).
 #   - UERANSIM con rutas de binario correctas e IP del pod inyectada.
+#   - SPIRE integrado en Cilium (mutual authentication): Cilium lo instala en
+#     cilium-spire con el trust domain de la tesis y el playbook verifica que
+#     cada identidad de Cilium tenga su SVID. Sustituye al SPIRE autónomo de
+#     la v1 (bootstrap/manifests/spire.yaml), que no podía atestar agentes.
 ---
 
 # =====================================================================
@@ -203,8 +207,13 @@
         --set hubble.enabled=true
         --set hubble.relay.enabled=true
         --set hubble.ui.enabled=true
+        {% if deploy_spire | bool %}
+        --set authentication.mutual.spire.enabled=true
+        --set authentication.mutual.spire.install.enabled=true
+        --set authentication.mutual.spire.trustDomain={{ spire_trust_domain }}
+        {% endif %}
       changed_when: true
-      tags: [cilium]
+      tags: [cilium, spire]
 
     - name: "Esperar a que Cilium esté listo en todos los nodos"
       ansible.builtin.command: "kubectl -n kube-system rollout status ds/cilium --timeout=300s"
@@ -215,6 +224,67 @@
       ansible.builtin.command: "kubectl wait --for=condition=Ready nodes --all --timeout=300s"
       changed_when: false
       tags: [cilium]
+
+    # ---------- SPIRE (instalado por Cilium en cilium-spire) ----------
+    - name: "Esperar al SPIRE server (StatefulSet con PVC de local-path)"
+      ansible.builtin.command: "kubectl -n cilium-spire rollout status statefulset/spire-server --timeout=600s"
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    - name: "Esperar a los SPIRE agents (uno por nodo)"
+      ansible.builtin.command: "kubectl -n cilium-spire rollout status daemonset/spire-agent --timeout=300s"
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    - name: "Healthcheck del SPIRE server"
+      ansible.builtin.command: >
+        kubectl -n cilium-spire exec spire-server-0 -c spire-server --
+        /opt/spire/bin/spire-server healthcheck
+      register: spire_health
+      retries: 20
+      delay: 6
+      until: "'Server is healthy' in spire_health.stdout"
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    - name: "¿El operador de Cilium ya registró identidades en SPIRE?"
+      ansible.builtin.command: >
+        kubectl -n cilium-spire exec spire-server-0 -c spire-server --
+        /opt/spire/bin/spire-server entry show -selector cilium:mutual-auth
+      register: spire_entries
+      failed_when: false
+      changed_when: false
+      when: deploy_spire | bool
+      tags: [cilium, spire]
+
+    # La doc de Cilium pide reiniciar operador y agentes tras activar SPIRE:
+    # si arrancaron antes de que SPIRE estuviera listo, no registran nada.
+    - name: "Reiniciar operador y agentes de Cilium (solo si SPIRE aún no tiene entradas)"
+      ansible.builtin.shell: |
+        kubectl -n kube-system rollout restart deployment/cilium-operator
+        kubectl -n kube-system rollout restart daemonset/cilium
+        kubectl -n kube-system rollout status deployment/cilium-operator --timeout=300s
+        kubectl -n kube-system rollout status daemonset/cilium --timeout=300s
+      when:
+        - deploy_spire | bool
+        - spire_entries.stdout is not search('Found [1-9]')
+      changed_when: true
+      tags: [cilium, spire]
+
+    - name: "Verificar que cada identidad de Cilium tiene su entrada SPIFFE"
+      ansible.builtin.command: >
+        kubectl -n cilium-spire exec spire-server-0 -c spire-server --
+        /opt/spire/bin/spire-server entry show -selector cilium:mutual-auth
+      register: spire_entries2
+      retries: 20
+      delay: 6
+      until: spire_entries2.stdout is search('Found [1-9]')
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
 
     # ---------- CLIs de observabilidad (cilium, hubble) ----------
     - name: "Instalar cilium CLI y hubble CLI en el master"
@@ -343,33 +413,6 @@
       ansible.builtin.command: "kubectl apply -f {{ work_dir }}/amf-n2-headless.yaml"
       changed_when: false
       tags: [open5gs, ueransim]
-
-    # ---------- SPIRE (opcional, sin enforcement) ----------
-    - name: "Copiar configs de SPIRE y manifiesto"
-      ansible.builtin.copy:
-        src: "{{ item.src }}"
-        dest: "{{ work_dir }}/{{ item.dst }}"
-        mode: "0644"
-      loop:
-        - { src: "{{ repo_root }}/spire-config/server.conf", dst: "server.conf" }
-        - { src: "{{ repo_root }}/spire-config/agent.conf", dst: "agent.conf" }
-        - { src: "{{ repo_root }}/bootstrap/manifests/spire.yaml", dst: "spire.yaml" }
-      when: deploy_spire | bool
-      tags: [spire]
-
-    - name: "Crear ConfigMaps de SPIRE"
-      ansible.builtin.shell: |
-        kubectl -n {{ ns_cp }} create configmap spire-server-conf --from-file=server.conf={{ work_dir }}/server.conf --dry-run=client -o yaml | kubectl apply -f -
-        kubectl -n {{ ns_cp }} create configmap spire-agent-conf --from-file=agent.conf={{ work_dir }}/agent.conf --dry-run=client -o yaml | kubectl apply -f -
-      when: deploy_spire | bool
-      changed_when: false
-      tags: [spire]
-
-    - name: "Aplicar SPIRE"
-      ansible.builtin.command: "kubectl apply -f {{ work_dir }}/spire.yaml"
-      when: deploy_spire | bool
-      changed_when: false
-      tags: [spire]
 
     # ---------- UERANSIM (gNB + UE) ----------
     - name: "Copiar configs UERANSIM y manifiesto"

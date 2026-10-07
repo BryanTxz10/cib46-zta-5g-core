@@ -30,9 +30,15 @@ open5gs_chart_version: "2.3.4"
 # scripts de C2. No lo cambies.
 open5gs_release: "open5gs-cp"
 
-# --- Identidad (opcional; sin enforcement) ---
-spire_version: "1.9.0"
-deploy_spire: false                 # pon true cuando trabajemos la identidad
+# --- Identidad: SPIRE integrado en Cilium (mutual authentication, beta) ---
+# Cilium instala SPIRE (namespace cilium-spire), el operador registra una
+# entrada SPIFFE por cada identidad de Cilium y las políticas con
+#   authentication: { mode: required }
+# exigen un handshake mTLS entre nodos antes de dejar pasar el tráfico.
+# Open5GS no necesita soportar SPIFFE: lo hace Cilium por debajo.
+deploy_spire: true
+spire_trust_domain: "cib46.5gcore.local"   # el mismo trust domain de la tesis
+spire_version: "1.8.5"                     # informativo: lo fija el chart de Cilium 1.15.4
 
 # --- RAN simulada ---
 ueransim_version: "v3.2.6"

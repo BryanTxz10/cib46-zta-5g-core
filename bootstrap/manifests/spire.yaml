@@ -1,3 +1,12 @@
+# ============================================================================
+# LEGADO v1 — NO SE USA EN LAB v2.
+# En lab v2 SPIRE lo instala y gestiona Cilium (mutual authentication) en el
+# namespace cilium-spire, con trust domain cib46.5gcore.local; ver
+# ansible/site.yml y docs/guia-lab-desde-cero.md (sección SPIRE).
+# Se conserva solo por trazabilidad con la tesis v1. Motivo del reemplazo:
+# el NodeAttestor solo admitía el SA "spire:spire-agent" pero el agente corría
+# en 5g-cp, no había entradas de registro y ninguna política consumía SVIDs.
+# ============================================================================
 # spire.yaml — despliegue mínimo de SPIRE Server + Agent en el namespace 5g-cp.
 # Las configuraciones se montan desde ConfigMaps creados por 80-spire.sh a
 # partir de spire-config/server.conf y spire-config/agent.conf (fuente de
