@@ -45,6 +45,20 @@ Dos caminos equivalentes (versiones fijadas, idempotentes):
 
 Reproducibilidad del artefacto y pasos extremo a extremo: `REPRODUCIBILITY.md`.
 
+## Integración continua y seguridad del pipeline
+
+Cada push y PR a `main` dispara dos workflows de GitHub Actions que verifican el
+despliegue **antes** de ejecutarlo en las VMs:
+
+| Workflow | Valida |
+|---|---|
+| `CI — Validación de despliegue` | bash (shellcheck/`bash -n`), Ansible (`--syntax-check` + lint), Kustomize (`build` C0–C3), Python |
+| `Seguridad CI/CD` | secretos (gitleaks), seguridad de workflows (actionlint/zizmor), IaC/K8s (trivy/checkov/kube-linter) |
+
+El pipeline aplica mínimo privilegio (`permissions: contents: read`), acciones
+fijadas por SHA y escaneo de secretos bloqueante. Detalle y roles de seguridad:
+`docs/ci-cd-seguridad.md`. Réplica local: `make ci`.
+
 ## Condiciones experimentales
 
 | Condición | Descripción |

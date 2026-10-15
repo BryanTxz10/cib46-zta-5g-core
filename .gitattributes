@@ -1,0 +1,30 @@
+# Normalización de fin de línea — reproducibilidad del testbed CIB46.
+# Sin esto, un contribuyente en Windows (core.autocrlf=true) puede commitear
+# CRLF y romper los intérpretes de los scripts bash en las VMs Ubuntu
+# ("#!/usr/bin/env bash\r: bad interpreter"). Forzamos LF en todo lo que se
+# ejecuta o se aplica en el clúster.
+
+# Por defecto: detectar texto y normalizar a LF en el repositorio.
+* text=auto eol=lf
+
+# Scripts y manifiestos que SE EJECUTAN/APLICAN en Linux -> siempre LF.
+*.sh    text eol=lf
+*.bash  text eol=lf
+*.py    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.cfg   text eol=lf
+*.conf  text eol=lf
+*.env   text eol=lf
+*.ini   text eol=lf
+Makefile text eol=lf
+
+# Binarios: nunca normalizar.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.pdf   binary
+*.gz    binary
+*.tgz   binary
+*.zip   binary
