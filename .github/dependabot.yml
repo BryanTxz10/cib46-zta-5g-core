@@ -1,0 +1,21 @@
+# Dependabot — mantiene al día las versiones fijadas (reproducibilidad +
+# parches de seguridad de la cadena de suministro).
+version: 2
+updates:
+  # Acciones de GitHub usadas por los workflows (fijadas por SHA).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies"]
+
+  # Dependencias Python del procesamiento estadístico.
+  - package-ecosystem: "pip"
+    directory: "/data-processing"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies"]

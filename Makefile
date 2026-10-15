@@ -59,6 +59,22 @@ lint: ## Chequeo de sintaxis de todos los scripts bash
 	          attack-scripts/*.sh monitoring/*.sh helm-values/*.sh \
 	          cilium-policies/c2/*.sh; do bash -n "$$f" && echo "ok  $$f"; done
 
+.PHONY: kustomize-check
+kustomize-check: ## Valida que los overlays Kustomize C0-C3 construyan
+	@for c in c0 c1 c2 c3; do \
+	  echo "== build $$c =="; \
+	  kustomize build --load-restrictor=LoadRestrictionsNone \
+	    cilium-policies/conditions/$$c >/dev/null && echo "ok  $$c"; \
+	done
+
+.PHONY: ci
+ci: ## Replica local del pipeline CI (lint bash + yaml + kustomize + python)
+	@echo "== bash -n =="; $(MAKE) --no-print-directory lint
+	@echo "== yamllint =="; yamllint -c .yamllint.yml .
+	@echo "== kustomize =="; $(MAKE) --no-print-directory kustomize-check
+	@echo "== python =="; python3 -m compileall -q attack-scripts bootstrap data-processing
+	@echo "OK: validación local completa"
+
 .PHONY: status
 status: ## Estado rápido del testbed
 	kubectl get pods -A | grep -E '5g-|cilium|multus|spire|metrics' || true

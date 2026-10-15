@@ -1,0 +1,16 @@
+# ansible-lint — testbed CIB46.
+# El playbook envuelve a propósito los instaladores oficiales (k3s, Helm) con
+# shell/command idempotentes (ver nota de diseño en site.yml), por lo que
+# usamos el perfil mínimo (solo errores que rompen el despliegue) y silenciamos
+# las reglas de estilo que chocan con ese patrón deliberado.
+profile: min
+
+exclude_paths:
+  - .git/
+  - .github/
+
+skip_list:
+  - command-instead-of-shell   # usamos shell para pipelines (curl | sh)
+  - no-changed-when            # changed_when ya está gestionado donde aplica
+  - package-latest             # versiones fijadas vía variables, no latest
+  - risky-shell-pipe           # curl | sh es el instalador oficial upstream
