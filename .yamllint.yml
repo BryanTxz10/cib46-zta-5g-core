@@ -1,0 +1,27 @@
+# Configuración de yamllint para el CI del testbed CIB46.
+# Base: perfil "relaxed"; endurecemos solo lo que importa para reproducibilidad.
+extends: relaxed
+
+yaml-files:
+  - "*.yaml"
+  - "*.yml"
+
+ignore: |
+  .git/
+
+rules:
+  # Los manifiestos K8s/Helm/Ansible tienen líneas largas legítimas.
+  line-length: disable
+  # Exigimos LF (los scripts/manifiestos se ejecutan en Linux).
+  new-lines:
+    type: unix
+  # JSON embebido en manifiestos (["a","b"]) no debe bloquear el pipeline.
+  commas:
+    level: warning
+  comments:
+    level: warning
+  comments-indentation:
+    level: warning
+  document-start: disable
+  truthy:
+    level: warning

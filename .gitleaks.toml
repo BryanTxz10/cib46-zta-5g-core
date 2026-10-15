@@ -1,0 +1,20 @@
+# gitleaks — configuración del escaneo de secretos del testbed CIB46.
+# Hereda el conjunto de reglas por defecto de gitleaks y añade una allowlist
+# acotada para valores de laboratorio que NO son secretos reales.
+title = "CIB46 gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores de testbed que no son credenciales reales"
+paths = [
+  '''(^|/)docs/referencias\.bib$''',
+]
+regexes = [
+  # PLMN de laboratorio (MCC 999 / MNC 70) y claves de ejemplo de UERANSIM/
+  # Open5GS que son valores públicos de test, no secretos de producción.
+  '''999700000000001''',
+  '''465B5CE8B199B49FAA5F0A2EE238A6BC''',
+  '''E8ED289DEBA952E4283B54E88E6183CA''',
+]
