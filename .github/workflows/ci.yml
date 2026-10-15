@@ -1,0 +1,122 @@
+name: CI — Validación de despliegue
+
+# Valida TODO lo que se ejecuta o se aplica en el clúster antes de desplegar:
+# scripts bash, playbook Ansible, overlays Kustomize (C0–C3) y scripts Python.
+# Es la red de seguridad del despliegue automatizado (make up / ansible-playbook).
+
+on:
+  push:
+    branches: ["main", "**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Principio de mínimo privilegio: el token solo puede leer el repositorio.
+permissions:
+  contents: read
+
+# Cancela ejecuciones antiguas de la misma rama/PR (ahorra minutos).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-shell:
+    name: Scripts bash (shellcheck + sintaxis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: shellcheck (findings informativos, no bloquea)
+        run: |
+          mapfile -t files < <(find bootstrap cilium-policies attack-scripts \
+            monitoring helm-values -name '*.sh' | sort)
+          shellcheck --severity=error "${files[@]}" || true
+      - name: bash -n (sintaxis, BLOQUEA)
+        run: |
+          rc=0
+          while IFS= read -r f; do
+            if bash -n "$f"; then echo "ok   $f"; else echo "FAIL $f"; rc=1; fi
+          done < <(find bootstrap cilium-policies attack-scripts \
+            monitoring helm-values -name '*.sh' | sort)
+          exit $rc
+      - name: make lint
+        run: make lint
+
+  lint-yaml:
+    name: YAML (yamllint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar yamllint
+        run: pipx install yamllint || pip install --user yamllint
+      - name: yamllint
+        run: yamllint -c .yamllint.yml .
+
+  validate-ansible:
+    name: Ansible (syntax-check + ansible-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar Ansible
+        run: pipx install --include-deps ansible-core || pip install --user ansible-core
+      - name: Instalar ansible-lint
+        run: pipx install ansible-lint || pip install --user ansible-lint
+      - name: ansible-playbook --syntax-check (BLOQUEA)
+        working-directory: ansible
+        run: ansible-playbook -i inventory/hosts.ini site.yml --syntax-check
+      - name: ansible-lint (perfil min, BLOQUEA)
+        run: ansible-lint ansible/site.yml
+
+  validate-manifests:
+    name: Manifiestos Kustomize (C0–C3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KUSTOMIZE_VERSION: v5.4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar kustomize
+        run: |
+          curl -sSfL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kustomize
+          kustomize version
+      - name: kustomize build de cada condición (BLOQUEA)
+        run: |
+          rc=0
+          for c in c0 c1 c2 c3; do
+            echo "== build $c =="
+            if kustomize build --load-restrictor=LoadRestrictionsNone \
+              "cilium-policies/conditions/$c" >/dev/null; then
+              echo "ok   $c"
+            else
+              echo "FAIL $c"; rc=1
+            fi
+          done
+          exit $rc
+
+  lint-python:
+    name: Python (compilación + ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+      - name: Compilar todos los scripts (BLOQUEA)
+        run: python -m compileall -q attack-scripts bootstrap data-processing
+      - name: ruff (lint de errores, no bloquea)
+        run: |
+          pip install ruff
+          ruff check --select E9,F63,F7,F82 . || true
