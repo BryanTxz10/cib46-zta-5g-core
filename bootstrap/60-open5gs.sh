@@ -9,15 +9,16 @@ need helm
 VALUES="${BOOTSTRAP_DIR}/../helm-values/open5gs-values.yaml"
 [ -f "$VALUES" ] || die "No se encontró ${VALUES}"
 
-helm repo add towards5gs "${TOWARDS5GS_REPO}" >/dev/null 2>&1 || true
-helm repo update towards5gs >/dev/null
-
 log "Desplegando Open5GS (chart ${OPEN5GS_CHART} ${OPEN5GS_CHART_VERSION}) en ${NS_CP}..."
-helm upgrade --install open5gs "${OPEN5GS_CHART}" \
+helm upgrade --install "${OPEN5GS_RELEASE}" "${OPEN5GS_CHART}" \
   --version "${OPEN5GS_CHART_VERSION}" \
   --namespace "${NS_CP}" \
-  -f "${VALUES}"
+  -f "${VALUES}" \
+  --wait --timeout 15m
+
+# Service headless N2 (SCTP pod->pod; ver manifests/amf-n2-headless.yaml).
+apply "${BOOTSTRAP_DIR}/manifests/amf-n2-headless.yaml"
 
 wait_ns_ready "${NS_CP}" 420s
 kubectl get pods -n "${NS_CP}"
-ok "Open5GS desplegado. Recuerda insertar suscriptores (70-subscribers.sh)."
+ok "Open5GS desplegado (el suscriptor lo inserta ${OPEN5GS_RELEASE}-populate)."

@@ -1,0 +1,28 @@
+# Condición C2-SPIRE — C2 + autenticación mutua con SPIRE (lab v2).
+#
+# Igual que C2 (identidad de workload por labels, verificada por el datapath
+# eBPF) pero la regla que permite la SBI hacia el NRF exige además
+#   authentication: { mode: required }
+# Cilium solo deja pasar ese tráfico si los agentes de ambos nodos
+# completaron un handshake mTLS con los SVID de SPIRE de las dos identidades
+# (spiffe://cib46.5gcore.local/identity/<id>).
+#
+# Requisitos: deploy_spire: true (por defecto en lab v2) y las NF etiquetadas
+# (bash cilium-policies/c2/02-patch-identity-labels.sh).
+#
+# Aplicar:  make condition C=c2-spire
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../c2
+patches:
+  - target:
+      group: cilium.io
+      version: v2
+      kind: CiliumNetworkPolicy
+      name: allow-sbi-legit-nfs-only
+    patch: |-
+      - op: add
+        path: /spec/ingress/0/authentication
+        value:
+          mode: required

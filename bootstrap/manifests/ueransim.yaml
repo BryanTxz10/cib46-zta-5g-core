@@ -1,11 +1,34 @@
 # ueransim.yaml — gNB y UE simulados (UERANSIM v3.2.6) en el namespace 5g-ran.
-# Las configs se montan desde ConfigMaps creados por 90-ueransim.sh a partir de
+# Las configs se montan desde ConfigMaps creados a partir de
 # ueransim-config/{gnb,ue}.yaml (fuente de verdad del repo).
 #
-# El gNB recibe la IP N2 10.10.0.20 vía Multus (NAD n2-net, ver 30-multus.sh).
-# Labels alineados con las CiliumNetworkPolicy:
+# Lab v2 (cambios frente a la v1):
+#   - Las imágenes towards5gs tienen los binarios en /ueransim/build/ (no en el
+#     PATH): se invocan con ruta completa.
+#   - El gNB usa la IP de SU pod (red de Cilium) para radio (linkIp), N2 y N3.
+#     Se inyecta en gnb.yaml reemplazando __POD_IP__ al arrancar.
+#     Así N2 (SCTP) y N3 (GTP-U) pasan por el datapath de Cilium y las
+#     políticas C1-C3 los ven (con macvlan/Multus, Cilium no los veía).
+#   - Service headless "ueransim-gnb": el UE encuentra al gNB por DNS
+#     (gnbSearchList). Antes apuntaba al AMF, que no habla RLS.
+#   - Ambos esperan a que el DNS del otro extremo exista antes de arrancar.
+#
+# Labels alineados con las CiliumNetworkPolicy y los checks:
 #   - gNB: app.kubernetes.io/name=ueransim-gnb  (c1/03-allow-gnb-to-amf-n2.yaml)
-#   - UE : el nombre del pod contiene 'ues'      (transition-to-*.sh grep 'ues')
+#   - UE : app.kubernetes.io/name=ueransim-ue; el pod contiene 'ues' en el nombre
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ueransim-gnb
+  namespace: 5g-ran
+  labels: { app.kubernetes.io/name: ueransim-gnb }
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector: { app.kubernetes.io/name: ueransim-gnb }
+  ports:
+    - { name: rls, port: 4997, targetPort: 4997, protocol: UDP }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -19,15 +42,24 @@ spec:
   template:
     metadata:
       labels: { app.kubernetes.io/name: ueransim-gnb }
-      annotations:
-        # IP estática N2 sobre Multus. AJUSTA si cambias la subred N2.
-        k8s.v1.cni.cncf.io/networks: >-
-          [{"name":"n2-net","ips":["10.10.0.20/24"]}]
     spec:
       containers:
         - name: gnb
-          image: towards5gs/ueransim-gnb:v3.2.6   # AJUSTA/pinnea por digest
-          command: ["/bin/sh","-c","nr-gnb -c /config/gnb.yaml"]
+          image: towards5gs/ueransim-gnb:v3.2.6   # pinnea por digest para el paper
+          env:
+            - name: POD_IP
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+            - name: AMF_HOST
+              value: amf-n2.5g-cp.svc.cluster.local
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              until getent hosts "$AMF_HOST" >/dev/null; do
+                echo "Esperando DNS del AMF ($AMF_HOST)..."; sleep 2
+              done
+              sed "s/__POD_IP__/${POD_IP}/g" /config/gnb.yaml > /tmp/gnb.yaml
+              echo "gNB con IP ${POD_IP}; AMF en $(getent hosts "$AMF_HOST" | awk '{print $1}')"
+              exec /ueransim/build/nr-gnb -c /tmp/gnb.yaml
           securityContext:
             capabilities: { add: ["NET_ADMIN"] }
           volumeMounts:
@@ -51,8 +83,19 @@ spec:
     spec:
       containers:
         - name: ue
-          image: towards5gs/ueransim-ue:v3.2.6    # AJUSTA/pinnea por digest
-          command: ["/bin/sh","-c","nr-ue -c /config/ue.yaml"]
+          image: towards5gs/ueransim-ue:v3.2.6    # pinnea por digest para el paper
+          env:
+            - name: GNB_HOST
+              value: ueransim-gnb.5g-ran.svc.cluster.local
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              mkdir -p /dev/net
+              [ -c /dev/net/tun ] || mknod /dev/net/tun c 10 200
+              until getent hosts "$GNB_HOST" >/dev/null; do
+                echo "Esperando DNS del gNB ($GNB_HOST)..."; sleep 2
+              done
+              exec /ueransim/build/nr-ue -c /config/ue.yaml
           securityContext:
             privileged: true          # crea el TUN uesimtun0
           volumeMounts:

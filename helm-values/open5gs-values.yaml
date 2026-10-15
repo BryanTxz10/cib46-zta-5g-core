@@ -1,6 +1,9 @@
 # open5gs-values.yaml
-# Archivo de valores para el chart towards5gs-helm utilizado en el
-# despliegue de Open5GS v2.7 sobre k3s v1.28.5.
+# Valores para el chart de Gradiant (oci://registry-1.docker.io/gradiantcharts/open5gs,
+# versión fijada en ansible/group_vars/all.yml) con Open5GS 2.7.x sobre k3s.
+# Nota lab v2: el repo towards5gs-helm no publica chart de Open5GS; estas
+# claves (hss/mme/pcrf/sgwc/sgwu, guamiList, nsiList, mongodb) son las del
+# chart de Gradiant.
 # PLMN de prueba: MCC 999 / MNC 70 (rango reservado para testbeds 3GPP).
 #
 # NOTA: las politicas de red nativas del chart (networkPolicy.enabled)
@@ -12,6 +15,16 @@
 
 networkPolicy:
   enabled: false
+
+# Suscriptor de prueba. Lo inserta el Deployment "<release>-populate" del
+# chart al arrancar (reemplaza a insert-subscribers.sh, que usaba el shell
+# 'mongo' legado, ausente en las imágenes MongoDB actuales).
+# Formato: add_ue_with_slice <IMSI> <K> <OPc> <DNN> <SST> <SD>
+# Deben coincidir con ueransim-config/ue.yaml.
+populate:
+  enabled: true
+  initCommands:
+    - open5gs-dbctl add_ue_with_slice 999700000000001 465B5CE8B199B49FAA5F0A2EE238A6BC E8ED289DEBA952E4283B54E88E6183CA internet 1 111111
 
 global:
   mcc: "999"
@@ -26,6 +39,9 @@ pcrf:
 sgwc:
   enabled: false
 sgwu:
+  enabled: false
+# SEPP (roaming entre PLMN) no se usa en una red privada de un solo PLMN.
+sepp:
   enabled: false
 
 nrf:

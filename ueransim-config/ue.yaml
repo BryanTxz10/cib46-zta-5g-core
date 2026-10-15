@@ -2,7 +2,7 @@
 # Configuracion del UE simulado con UERANSIM v3.2.6.
 # El IMSI y las claves de seguridad deben coincidir exactamente con el
 # perfil de suscriptor insertado en MongoDB
-# (ver ../helm-values/insert-subscribers.sh).
+# (lab v2: populate.initCommands en ../helm-values/open5gs-values.yaml).
 
 supi: 'imsi-999700000000001'
 mcc: '999'
@@ -15,8 +15,10 @@ amf: '8000'
 imei: '356938035643803'
 imeiSv: '4370816125816151'
 
+# Dónde busca el UE al gNB (protocolo RLS, UDP 4997). Debe ser el gNB, no el
+# AMF. Service headless definido en bootstrap/manifests/ueransim.yaml.
 gnbSearchList:
-  - open5gs-cp-amf-ngap.5g-cp.svc.cluster.local
+  - ueransim-gnb.5g-ran.svc.cluster.local
 
 uacAic:
   mps: false

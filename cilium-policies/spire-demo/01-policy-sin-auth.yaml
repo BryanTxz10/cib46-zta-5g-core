@@ -1,0 +1,19 @@
+# 01-policy-sin-auth.yaml — Paso 1: identidad + L7, SIN autenticación mutua.
+# Solo app=client puede hacer GET /hostname al echo. /clientip -> 403.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: echo-ingress
+  namespace: spire-demo
+spec:
+  endpointSelector:
+    matchLabels: { app: echo }
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app: client }
+      toPorts:
+        - ports:
+            - { port: "8080", protocol: TCP }
+          rules:
+            http:
+              - { method: "GET", path: "/hostname" }

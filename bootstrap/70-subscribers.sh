@@ -16,8 +16,9 @@ kubectl -n "${NS_CP}" wait --for=condition=Ready pod \
   -l app.kubernetes.io/name=mongodb --timeout=180s || \
   die "MongoDB no llegó a Ready."
 
-INS="${BOOTSTRAP_DIR}/../helm-values/insert-subscribers.sh"
-[ -f "$INS" ] || die "No se encontró ${INS}"
-log "Insertando suscriptor de prueba vía ${INS}..."
-bash "$INS"
-ok "Suscriptor insertado."
+# Lab v2: el suscriptor lo inserta el Deployment <release>-populate del chart
+# (helm-values/open5gs-values.yaml -> populate.initCommands). Aquí solo
+# esperamos a que termine; insert-subscribers.sh lo re-ejecuta si hace falta.
+kubectl -n "${NS_CP}" rollout status "deployment/${OPEN5GS_RELEASE}-populate" --timeout=300s || \
+  die "El populate no terminó. Revisa: kubectl -n ${NS_CP} logs deploy/${OPEN5GS_RELEASE}-populate -c init."
+ok "Suscriptor insertado por ${OPEN5GS_RELEASE}-populate."

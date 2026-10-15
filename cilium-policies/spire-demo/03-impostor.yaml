@@ -1,0 +1,23 @@
+# 03-impostor.yaml — Paso 3: el límite honesto (para la tesis y el KCD).
+#
+# Un pod creado por otro principal que COPIA los labels del cliente
+# (app=client). Cilium le asigna la MISMA identidad numérica que al cliente
+# legítimo, y el SPIFFE ID en Cilium se deriva de esa identidad
+# (spiffe://cib46.5gcore.local/identity/<id>), así que obtiene el MISMO SVID
+# y pasa la autenticación mutua.
+#
+# Conclusión: SPIRE en Cilium autentica identidades entre nodos, pero no
+# vuelve infalsificable el label. Eso lo hace el control de admisión
+# (bootstrap/admission/, Kyverno) -> RM-05.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: impostor
+  namespace: spire-demo
+  labels: { app: client }          # labels copiados
+spec:
+  nodeSelector: { kubernetes.io/hostname: node-master }
+  containers:
+    - name: netshoot
+      image: nicolaka/netshoot:v0.13
+      command: ["sleep", "infinity"]

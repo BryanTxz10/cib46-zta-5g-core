@@ -1,18 +1,27 @@
-# site.yml — Despliegue completo del testbed CIB46 con Ansible.
+# site.yml — Despliegue completo del testbed CIB46 con Ansible (lab v2).
 #
-# Reemplaza a bootstrap/*.sh como ORQUESTADOR: en vez de "pasos de shell",
-# describe el estado deseado del clúster y lo consigue de forma idempotente
+# Describe el estado deseado del clúster y lo consigue de forma idempotente
 # (puedes re-ejecutarlo sin romper nada).
 #
 # Uso (desde la carpeta ansible/):
-#   ansible-playbook site.yml                 # todo
-#   ansible-playbook site.yml --ask-become-pass   # si sudo pide contraseña
-#   ansible-playbook site.yml --tags cilium   # solo una parte
+#   ansible-playbook site.yml -K              # todo (-K pide la clave de sudo)
+#   ansible-playbook site.yml -K --tags cilium   # solo una parte
 #
-# Nota de diseño: envolvemos los instaladores oficiales (k3s, Helm) y
-# kubectl/helm (que YA son idempotentes) en vez de reimplementarlos. Es un
-# patrón común y robusto en testbeds de redes, y minimiza dependencias
-# (solo Ansible + SSH; no hace falta la colección kubernetes.core).
+# Guía paso a paso desde VMs vacías: docs/guia-lab-desde-cero.md
+#
+# Cambios lab v2 (resumen; detalle en la guía):
+#   - k3s con --node-ip explícito (evita que tome otra NIC).
+#   - Cilium con pool de pods 10.42.0.0/16 y CLIs cilium/hubble en el master.
+#   - Open5GS desde el chart OCI de Gradiant (towards5gs no tiene chart de
+#     Open5GS), release "open5gs-cp", suscriptor vía populate del chart.
+#   - N2 por la red de pods de Cilium (Multus opcional y apagado): así las
+#     políticas C1-C3 ven el tráfico N2. El gNB llega al AMF por un Service
+#     headless (Cilium 1.15 no soporta SCTP sobre VIP con KPR).
+#   - UERANSIM con rutas de binario correctas e IP del pod inyectada.
+#   - SPIRE integrado en Cilium (mutual authentication): Cilium lo instala en
+#     cilium-spire con el trust domain de la tesis y el playbook verifica que
+#     cada identidad de Cilium tenga su SVID. Sustituye al SPIRE autónomo de
+#     la v1 (bootstrap/manifests/spire.yaml), que no podía atestar agentes.
 ---
 
 # =====================================================================
@@ -30,8 +39,6 @@
         update_cache: true
 
     - name: "Cargar el módulo SCTP (necesario para N2/NGAP y el vector A3)"
-      # modprobe es idempotente: cargar un módulo ya cargado es un no-op.
-      # Usamos shell puro para NO depender de ninguna colección externa.
       ansible.builtin.shell: "modprobe sctp && lsmod | grep -q '^sctp'"
       changed_when: false
 
@@ -40,6 +47,16 @@
         dest: /etc/modules-load.d/sctp.conf
         content: "sctp\n"
         mode: "0644"
+
+    - name: "Desactivar swap ahora (Kubernetes lo recomienda)"
+      ansible.builtin.command: "swapoff -a"
+      changed_when: false
+
+    - name: "Desactivar swap de forma persistente (comenta la línea en fstab)"
+      ansible.builtin.replace:
+        path: /etc/fstab
+        regexp: '^([^#].*\sswap\s.*)$'
+        replace: '# \1'
 
 # =====================================================================
 # PLAY 2 — k3s SERVER en el master (sin CNI ni kube-proxy: lo hace Cilium)
@@ -59,6 +76,7 @@
         curl -sfL https://get.k3s.io | \
           INSTALL_K3S_VERSION="{{ k3s_version }}" \
           INSTALL_K3S_EXEC="server \
+            --node-ip={{ ansible_host }} \
             --flannel-backend=none \
             --disable-network-policy \
             --disable-kube-proxy \
@@ -78,6 +96,23 @@
       until: readyz.rc == 0
       changed_when: false
 
+    - name: "Crear ~/.kube del usuario"
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0700"
+
+    - name: "Dejar el kubeconfig en el HOME del usuario (kubectl/helm sin sudo)"
+      ansible.builtin.copy:
+        src: "{{ kubeconfig_path }}"
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        remote_src: true
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0600"
+
     - name: "Leer el node-token (para unir a los workers)"
       ansible.builtin.slurp:
         src: /var/lib/rancher/k3s/server/node-token
@@ -86,7 +121,7 @@
     - name: "Guardar token e IP del master como hechos compartidos"
       ansible.builtin.set_fact:
         k3s_token: "{{ k3s_token_b64.content | b64decode | trim }}"
-        master_ip: "{{ ansible_host | default(ansible_default_ipv4.address) }}"
+        master_ip: "{{ ansible_host }}"
 
 # =====================================================================
 # PLAY 3 — k3s AGENT en los workers (se unen al master)
@@ -107,6 +142,7 @@
           INSTALL_K3S_VERSION="{{ k3s_version }}" \
           K3S_URL="https://{{ hostvars[groups['master'][0]].master_ip }}:6443" \
           K3S_TOKEN="{{ hostvars[groups['master'][0]].k3s_token }}" \
+          INSTALL_K3S_EXEC="agent --node-ip={{ ansible_host }}" \
           sh -
       when: not k3s_agent_bin.stat.exists
       changed_when: true
@@ -114,7 +150,7 @@
 # =====================================================================
 # PLAY 4 — Componentes del clúster (se ejecutan EN el master)
 # =====================================================================
-- name: "Desplegar CNI, core 5G e identidad"
+- name: "Desplegar CNI, core 5G y RAN simulada"
   hosts: master
   become: true
   environment:
@@ -126,6 +162,7 @@
   tasks:
     - name: "Crear directorio de trabajo en el master"
       ansible.builtin.file: { path: "{{ work_dir }}", state: directory, mode: "0755" }
+      tags: [always]
 
     # ---------- Helm ----------
     - name: "¿Helm instalado?"
@@ -133,11 +170,13 @@
       register: helm_check
       failed_when: false
       changed_when: false
+      tags: [always]
 
-    - name: "Instalar Helm"
+    - name: "Instalar Helm 3"
       ansible.builtin.shell: "curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
       when: helm_check.rc != 0
       changed_when: true
+      tags: [always]
 
     # ---------- Cilium (CNI + KPR + L7 + SCTP + Hubble) ----------
     - name: "Añadir repo Helm de Cilium"
@@ -145,10 +184,12 @@
       register: r
       changed_when: "'has been added' in r.stdout"
       failed_when: r.rc != 0 and 'already exists' not in r.stderr
+      tags: [cilium]
 
     - name: "helm repo update"
       ansible.builtin.command: "helm repo update"
       changed_when: false
+      tags: [cilium]
 
     - name: "Instalar/actualizar Cilium"
       ansible.builtin.command: >
@@ -156,36 +197,129 @@
         --version {{ cilium_version }}
         --namespace kube-system
         --set kubeProxyReplacement=true
-        --set k8sServiceHost={{ master_ip }}
+        --set k8sServiceHost={{ ansible_host }}
         --set k8sServicePort=6443
         --set l7Proxy=true
         --set sctp.enabled=true
         --set operator.replicas=1
         --set ipam.mode=cluster-pool
+        --set ipam.operator.clusterPoolIPv4PodCIDRList={ {{- cilium_pod_cidr -}} }
         --set hubble.enabled=true
         --set hubble.relay.enabled=true
         --set hubble.ui.enabled=true
+        {% if deploy_spire | bool %}
+        --set authentication.mutual.spire.enabled=true
+        --set authentication.mutual.spire.install.enabled=true
+        --set authentication.mutual.spire.trustDomain={{ spire_trust_domain }}
+        {% endif %}
       changed_when: true
-      tags: [cilium]
+      tags: [cilium, spire]
 
-    - name: "Esperar a que Cilium esté listo"
+    - name: "Esperar a que Cilium esté listo en todos los nodos"
       ansible.builtin.command: "kubectl -n kube-system rollout status ds/cilium --timeout=300s"
       changed_when: false
       tags: [cilium]
 
-    # ---------- Multus + NAD N2 ----------
-    - name: "Instalar Multus (thick daemonset)"
-      ansible.builtin.command: >
-        kubectl apply -f
-        https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/{{ multus_version }}/deployments/multus-daemonset-thick.yml
+    - name: "Esperar a que los nodos estén Ready"
+      ansible.builtin.command: "kubectl wait --for=condition=Ready nodes --all --timeout=300s"
       changed_when: false
-      tags: [multus]
+      tags: [cilium]
 
+    # ---------- SPIRE (instalado por Cilium en cilium-spire) ----------
+    - name: "Esperar al SPIRE server (StatefulSet con PVC de local-path)"
+      ansible.builtin.command: "kubectl -n cilium-spire rollout status statefulset/spire-server --timeout=600s"
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    - name: "Esperar a los SPIRE agents (uno por nodo)"
+      ansible.builtin.command: "kubectl -n cilium-spire rollout status daemonset/spire-agent --timeout=300s"
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    - name: "Healthcheck del SPIRE server"
+      ansible.builtin.command: >
+        kubectl -n cilium-spire exec spire-server-0 -c spire-server --
+        /opt/spire/bin/spire-server healthcheck
+      register: spire_health
+      retries: 20
+      delay: 6
+      until: "'Server is healthy' in spire_health.stdout"
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    - name: "¿El operador de Cilium ya registró identidades en SPIRE?"
+      ansible.builtin.command: >
+        kubectl -n cilium-spire exec spire-server-0 -c spire-server --
+        /opt/spire/bin/spire-server entry show -selector cilium:mutual-auth
+      register: spire_entries
+      failed_when: false
+      changed_when: false
+      when: deploy_spire | bool
+      tags: [cilium, spire]
+
+    # La doc de Cilium pide reiniciar operador y agentes tras activar SPIRE:
+    # si arrancaron antes de que SPIRE estuviera listo, no registran nada.
+    - name: "Reiniciar operador y agentes de Cilium (solo si SPIRE aún no tiene entradas)"
+      ansible.builtin.shell: |
+        kubectl -n kube-system rollout restart deployment/cilium-operator
+        kubectl -n kube-system rollout restart daemonset/cilium
+        kubectl -n kube-system rollout status deployment/cilium-operator --timeout=300s
+        kubectl -n kube-system rollout status daemonset/cilium --timeout=300s
+      when:
+        - deploy_spire | bool
+        - spire_entries.stdout is not search('Found [1-9]')
+      changed_when: true
+      tags: [cilium, spire]
+
+    - name: "Verificar que cada identidad de Cilium tiene su entrada SPIFFE"
+      ansible.builtin.command: >
+        kubectl -n cilium-spire exec spire-server-0 -c spire-server --
+        /opt/spire/bin/spire-server entry show -selector cilium:mutual-auth
+      register: spire_entries2
+      retries: 20
+      delay: 6
+      until: spire_entries2.stdout is search('Found [1-9]')
+      when: deploy_spire | bool
+      changed_when: false
+      tags: [cilium, spire]
+
+    # ---------- CLIs de observabilidad (cilium, hubble) ----------
+    - name: "Instalar cilium CLI y hubble CLI en el master"
+      ansible.builtin.shell: |
+        set -e
+        cd /tmp
+        if ! command -v cilium >/dev/null; then
+          curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/{{ cilium_cli_version }}/cilium-linux-amd64.tar.gz{,.sha256sum}
+          sha256sum --check cilium-linux-amd64.tar.gz.sha256sum
+          tar xzf cilium-linux-amd64.tar.gz -C /usr/local/bin
+        fi
+        if ! command -v hubble >/dev/null; then
+          curl -L --fail --remote-name-all https://github.com/cilium/hubble/releases/download/{{ hubble_cli_version }}/hubble-linux-amd64.tar.gz{,.sha256sum}
+          sha256sum --check hubble-linux-amd64.tar.gz.sha256sum
+          tar xzf hubble-linux-amd64.tar.gz -C /usr/local/bin
+        fi
+      args: { executable: /bin/bash }
+      changed_when: false
+      tags: [tools]
+
+    # ---------- Namespaces ----------
     - name: "Crear namespaces"
       ansible.builtin.shell: "kubectl create ns {{ item }} --dry-run=client -o yaml | kubectl apply -f -"
       loop: ["{{ ns_cp }}", "{{ ns_ran }}", "{{ ns_up }}"]
       changed_when: false
-      tags: [multus, namespaces]
+      tags: [namespaces, open5gs, ueransim]
+
+    # ---------- Multus + NAD N2 (OPCIONAL, apagado en lab v2) ----------
+    - name: "Instalar Multus (thick daemonset)"
+      ansible.builtin.command: >
+        kubectl apply -f
+        https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/{{ multus_version }}/deployments/multus-daemonset-thick.yml
+      when: deploy_multus | bool
+      changed_when: false
+      tags: [multus]
 
     - name: "Crear NetworkAttachmentDefinition n2-net en RAN y CP"
       ansible.builtin.shell: |
@@ -206,6 +340,7 @@
             }
         EOF
       loop: ["{{ ns_ran }}", "{{ ns_cp }}"]
+      when: deploy_multus | bool
       changed_when: false
       tags: [multus]
 
@@ -217,16 +352,23 @@
       changed_when: false
       tags: [metrics]
 
+    - name: "¿metrics-server ya tiene --kubelet-insecure-tls?"
+      ansible.builtin.command: >
+        kubectl -n kube-system get deployment metrics-server
+        -o jsonpath={.spec.template.spec.containers[0].args}
+      register: ms_args
+      changed_when: false
+      tags: [metrics]
+
     - name: "Permitir kubelet-insecure-tls en metrics-server (testbed)"
       ansible.builtin.command: >
         kubectl -n kube-system patch deployment metrics-server --type=json
         -p=[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]
-      register: msp
-      failed_when: false
-      changed_when: "'patched' in msp.stdout"
+      when: "'kubelet-insecure-tls' not in ms_args.stdout"
+      changed_when: true
       tags: [metrics]
 
-    # ---------- Open5GS (Helm) ----------
+    # ---------- Open5GS (chart OCI de Gradiant) ----------
     - name: "Copiar values de Open5GS al master"
       ansible.builtin.copy:
         src: "{{ repo_root }}/helm-values/open5gs-values.yaml"
@@ -234,24 +376,13 @@
         mode: "0644"
       tags: [open5gs]
 
-    - name: "Añadir repo Helm towards5gs"
-      ansible.builtin.command: "helm repo add towards5gs {{ towards5gs_repo_url }}"
-      register: r5
-      changed_when: "'has been added' in r5.stdout"
-      failed_when: r5.rc != 0 and 'already exists' not in r5.stderr
-      tags: [open5gs]
-
-    - name: "helm repo update"
-      ansible.builtin.command: "helm repo update"
-      changed_when: false
-      tags: [open5gs]
-
-    - name: "Desplegar Open5GS"
+    - name: "Desplegar Open5GS (espera a que todo esté listo, hasta 15 min)"
       ansible.builtin.command: >
-        helm upgrade --install open5gs {{ open5gs_chart }}
+        helm upgrade --install {{ open5gs_release }} {{ open5gs_chart }}
         --version {{ open5gs_chart_version }}
         --namespace {{ ns_cp }}
         -f {{ work_dir }}/open5gs-values.yaml
+        --wait --timeout 15m
       changed_when: true
       tags: [open5gs]
 
@@ -262,45 +393,26 @@
       changed_when: false
       tags: [open5gs, subscribers]
 
-    # ---------- Suscriptor ----------
-    - name: "Copiar script de suscriptores"
-      ansible.builtin.copy:
-        src: "{{ repo_root }}/helm-values/insert-subscribers.sh"
-        dest: "{{ work_dir }}/insert-subscribers.sh"
-        mode: "0755"
-      tags: [subscribers]
+    # ---------- Suscriptor (lo inserta el 'populate' del chart) ----------
+    - name: "Esperar a que el populate haya insertado el suscriptor"
+      ansible.builtin.command: >
+        kubectl -n {{ ns_cp }} rollout status
+        deployment/{{ open5gs_release }}-populate --timeout=300s
+      changed_when: false
+      tags: [open5gs, subscribers]
 
-    - name: "Insertar suscriptor de prueba"
-      ansible.builtin.command: "bash {{ work_dir }}/insert-subscribers.sh"
-      changed_when: true
-      tags: [subscribers]
-
-    # ---------- SPIRE (opcional, sin enforcement) ----------
-    - name: "Copiar configs de SPIRE y manifiesto"
+    # ---------- Service headless N2 del AMF ----------
+    - name: "Copiar y aplicar el Service headless N2 del AMF"
       ansible.builtin.copy:
-        src: "{{ item.src }}"
-        dest: "{{ work_dir }}/{{ item.dst }}"
+        src: "{{ repo_root }}/bootstrap/manifests/amf-n2-headless.yaml"
+        dest: "{{ work_dir }}/amf-n2-headless.yaml"
         mode: "0644"
-      loop:
-        - { src: "{{ repo_root }}/spire-config/server.conf", dst: "server.conf" }
-        - { src: "{{ repo_root }}/spire-config/agent.conf", dst: "agent.conf" }
-        - { src: "{{ repo_root }}/bootstrap/manifests/spire.yaml", dst: "spire.yaml" }
-      when: deploy_spire | bool
-      tags: [spire]
+      tags: [open5gs, ueransim]
 
-    - name: "Crear ConfigMaps de SPIRE"
-      ansible.builtin.shell: |
-        kubectl -n {{ ns_cp }} create configmap spire-server-conf --from-file=server.conf={{ work_dir }}/server.conf --dry-run=client -o yaml | kubectl apply -f -
-        kubectl -n {{ ns_cp }} create configmap spire-agent-conf --from-file=agent.conf={{ work_dir }}/agent.conf --dry-run=client -o yaml | kubectl apply -f -
-      when: deploy_spire | bool
+    - name: "Aplicar amf-n2-headless.yaml"
+      ansible.builtin.command: "kubectl apply -f {{ work_dir }}/amf-n2-headless.yaml"
       changed_when: false
-      tags: [spire]
-
-    - name: "Aplicar SPIRE"
-      ansible.builtin.command: "kubectl apply -f {{ work_dir }}/spire.yaml"
-      when: deploy_spire | bool
-      changed_when: false
-      tags: [spire]
+      tags: [open5gs, ueransim]
 
     # ---------- UERANSIM (gNB + UE) ----------
     - name: "Copiar configs UERANSIM y manifiesto"
@@ -326,9 +438,16 @@
       changed_when: false
       tags: [ueransim]
 
+    - name: "Esperar a gNB y UE"
+      ansible.builtin.command: "kubectl -n {{ ns_ran }} rollout status deployment/{{ item }} --timeout=300s"
+      loop: [ueransim-gnb, ueransim-ues]
+      changed_when: false
+      tags: [ueransim]
+
     - name: "Mensaje final"
       ansible.builtin.debug:
         msg: >
-          Testbed desplegado. Aplica la condición baseline con los overlays
-          Kustomize (ver README-ansible.md §8) y valida con la prueba de humo
-          del plano de control.
+          Testbed desplegado. Sigue la sección de verificación de
+          docs/guia-lab-desde-cero.md (logs del gNB/UE, uesimtun0) y aplica C0
+          con 'make condition C=c0' + 'make smoke C=C0'.
+      tags: [always]

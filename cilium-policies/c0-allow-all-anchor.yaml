@@ -1,18 +1,25 @@
 # c0-allow-all-anchor.yaml
 # Condicion C0 (baseline sin controles ZTA).
 #
-# Cilium 1.15.4 en modo KubeProxyReplacement Strict requiere al menos una
-# politica activa por namespace para mantener la sincronizacion de
-# endpoints eBPF entre nodos. Sin ninguna politica presente, el sync
-# inter-nodo del dataplane se degrada. Por ello C0 no significa "cero
-# politicas de Cilium en el cluster", sino "cero politicas de
-# segmentacion, identidad o autorizacion": se mantiene una politica ancla
-# permisiva (allow-all) por namespace, que no restringe ningun trafico y
-# preserva el comportamiento equivalente a un despliegue sin Cilium
-# Network Policies.
+# C0 = "cero politicas de segmentacion, identidad o autorizacion". Se mantiene
+# una politica ancla por namespace (declarativa y visible en kubectl) que
+# permite TODO el trafico de entrada y salida.
 #
-# Se despliega una copia de este manifiesto en cada uno de los tres
-# namespaces del testbed: 5g-cp, 5g-ran, 5g-up.
+# CORRECCION lab v2 (importante):
+#   La version anterior usaba
+#       ingress: [ {} ]
+#       egress:  [ {} ]
+#   En CiliumNetworkPolicy eso NO es allow-all (esa es la semantica de la
+#   NetworkPolicy de Kubernetes). En Cilium una regla vacia activa el modo
+#   default-deny sin permitir nada: es el patron "deny-all" de los ejemplos
+#   oficiales (examples/policies/l3/egress-default-deny/ en cilium v1.15.4).
+#   Aplicada, cortaba DNS, SBI, N2 y N3 en los tres namespaces.
+#   El allow-all correcto en Cilium es por entidades: fromEntities/toEntities
+#   "all" (cualquier endpoint del cluster, el host y el exterior).
+#
+# Nota: Cilium no necesita ninguna politica para permitir trafico (sin
+# politicas, todo esta permitido). El ancla existe solo para que las
+# transiciones entre condiciones sean declarativas y auditables.
 
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -22,9 +29,9 @@ metadata:
 spec:
   endpointSelector: {}
   ingress:
-    - {}
+    - fromEntities: [all]
   egress:
-    - {}
+    - toEntities: [all]
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -34,9 +41,9 @@ metadata:
 spec:
   endpointSelector: {}
   ingress:
-    - {}
+    - fromEntities: [all]
   egress:
-    - {}
+    - toEntities: [all]
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -46,6 +53,6 @@ metadata:
 spec:
   endpointSelector: {}
   ingress:
-    - {}
+    - fromEntities: [all]
   egress:
-    - {}
+    - toEntities: [all]
