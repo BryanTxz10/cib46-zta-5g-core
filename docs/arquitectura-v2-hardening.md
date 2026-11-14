@@ -6,6 +6,9 @@
 > manifiestos, values y playbooks. El **Perfil B** (Multus, redes por interfaz,
 > MultiNetworkPolicy) y el **split de namespaces** de UPF/MongoDB quedan como
 > seguimiento documentado (§3), tal como la propia review los difiere.
+>
+> **Actualización (arquitectura v3):** el split del UPF a `5g-up` ya está hecho.
+> Ver `docs/arquitectura-v3-planos.md`. MongoDB sigue en `5g-cp`.
 
 ## 1. Mapa hallazgo → cambio
 
@@ -51,7 +54,7 @@ vectores. Decláralo en la tesis o ajústalo según tu objetivo:
 
 | Tema | Por qué se difiere | Cómo hacerlo |
 |---|---|---|
-| **UPF→5g-up, MongoDB→5g-db** (split de namespaces) | Alto riesgo: el chart de Gradiant despliega todo en un release; separarlos exige releases Helm aparte y re-emparejar PFCP (N4) entre namespaces. La review lo marca P2 y recomienda, pre-KCD, dejarlos en 5g-cp **aislados por label** (ya hecho: egress UPF, ingress N3/N4, MongoDB UDR/PCF). | Releases Helm separados para upf y mongodb; referencias de servicio cross-namespace; subir 5g-cp/5g-db a `enforce=baseline`. |
+| **MongoDB→5g-db** (el UPF→5g-up ya está hecho en la v3) | Alto riesgo: el chart de Gradiant despliega todo en un release; separarlos exige releases Helm aparte y re-emparejar PFCP (N4) entre namespaces. La review lo marca P2 y recomienda, pre-KCD, dejarlos en 5g-cp **aislados por label** (ya hecho: egress UPF, ingress N3/N4, MongoDB UDR/PCF). | Releases Helm separados para upf y mongodb; referencias de servicio cross-namespace; subir 5g-cp/5g-db a `enforce=baseline`. |
 | **UE + ataque → 5g-ue** | Ripplea el modelo de amenaza (A1 cambia de zona de origen) y la política `deny-ran-to-cp`. Se mantiene en 5g-ran por ahora; PSS en warn/audit para no romper. | Crear ns `5g-ue` privileged; mover `ueransim.yaml` (UE) y los pods de ataque; añadir `deny-ue-to-cp`. |
 | **Perfil B (Multus multi-interfaz)** | Es **otro experimento** (1–2 semanas): Cilium deja de ver N2/N3/N4/N6 y necesitas MultiNetworkPolicy. La review dice que NO entra en la charla. | `ipvlan L2` (no macvlan en Workstation), una NAD por red y namespace, medir qué enforcement se pierde al salir de Cilium. |
 | **Taint + SPIRE** | Con SPIRE integrado en Cilium (cilium-spire), el server se reprograma a un worker sin problema (ya no está atado al master como en la v1), así que el taint es seguro. | `ansible-playbook hardening.yml --tags taint` en despliegue nuevo. |

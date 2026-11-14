@@ -1,10 +1,14 @@
 # Condición C1 — microsegmentación L3/L4, ENDURECIDA (Perfil A).
 #
-# Cambios vs v1 (ver docs/arquitectura-v2-hardening.md):
-#   + egress default-deny en 5g-cp y 5g-ran (hallazgo 2)
-#   + contención N6 del UPF (hallazgo 1)
-#   + ingress N3/N4 explícito sobre el UPF (hallazgo 4)
-#   + MongoDB solo desde UDR/PCF/BSF, reemplaza c1/04 (hallazgo 7)
+# Cambios vs v1 (ver docs/arquitectura-v2-hardening.md y
+# docs/arquitectura-v3-planos.md):
+#   + default-deny REAL de ingress en 5g-cp; sustituye a c1/01-deny-ran-to-cp,
+#     que en Cilium era un allow de todo 5g-ran
+#   + egress default-deny en 5g-cp, 5g-ran y 5g-up (hallazgo 2)
+#   + plano de usuario en su propia zona (5g-up): el UPF solo acepta N3 del
+#     gNB y N4 del SMF, y solo sale a world (N6) y al gNB (hallazgos 1 y 4)
+#   + N4 como única salida entre zonas del plano de control (solo el SMF)
+#   + MongoDB solo desde UDR/PCF/populate, reemplaza c1/04 (hallazgo 7)
 #   - se retira c1/05-ratelimit-n2-amf: era redundante y abría N2 a TODO 5g-ran;
 #     el origen de N2 queda restringido al gNB por c1/03 (hallazgo 4).
 #
@@ -17,7 +21,7 @@ commonLabels:
   cib46.io/managed: "true"
 resources:
   # Ingress (L3/L4)
-  - ../../c1/01-deny-ran-to-cp.yaml
+  - ../../hardening/ingress/00-default-deny-cp.yaml
   - ../../c1/02-allow-sbi-intra-core.yaml
   - ../../c1/03-allow-gnb-to-amf-n2.yaml
   - ../../hardening/ingress/01-allow-mongodb-udr-pcf.yaml
@@ -26,3 +30,4 @@ resources:
   - ../../hardening/egress/00-egress-cp-baseline.yaml
   - ../../hardening/egress/01-egress-upf-n6.yaml
   - ../../hardening/egress/02-egress-ran-baseline.yaml
+  - ../../hardening/egress/03-egress-smf-n4.yaml

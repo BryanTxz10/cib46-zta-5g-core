@@ -1,0 +1,29 @@
+# 00-default-deny-cp.yaml
+# Arquitectura v3 — default-deny REAL de ingress en la zona de control (5g-cp).
+#
+# Sustituye en los overlays C1-C3 a c1/01-deny-ran-to-cp.yaml. Aquella política
+# se llamaba "deny" pero era una regla `ingress.fromEndpoints` de 5g-ran: en
+# Cilium eso es un ALLOW de todo 5g-ran hacia todos los pods de 5g-cp, en
+# cualquier puerto. (Se conserva en c1/ como ejemplo del gotcha y para
+# reproducir la v1; ya no se aplica.)
+#
+# Una regla de ingress vacía selecciona los endpoints y activa el modo
+# default-deny sin permitir nada: es el patrón deny-all de los ejemplos
+# oficiales de Cilium (examples/policies/l3/ingress-default-deny).
+# A partir de aquí, en 5g-cp solo entra lo que otra política permite de forma
+# explícita:
+#   - SBI 7777 entre NF del core            (c1/02 en C1; c2/01 + c2/03 en C2/C3)
+#   - N2 SCTP 38412 del gNB al AMF          (c1/03)
+#   - MongoDB 27017 desde UDR/PCF/populate  (hardening/ingress/01)
+# Y NADA desde el plano de usuario (5g-up): el UPF no tiene ninguna regla de
+# entrada hacia 5g-cp. Las respuestas PFCP del UPF al SMF vuelven por la
+# conexión que abrió el SMF (conntrack), no por una regla propia.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-cp
+  namespace: 5g-cp
+spec:
+  endpointSelector: {}
+  ingress:
+    - {}

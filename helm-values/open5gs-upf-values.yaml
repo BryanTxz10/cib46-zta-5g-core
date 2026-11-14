@@ -1,0 +1,93 @@
+# open5gs-upf-values.yaml
+# PLANO DE USUARIO del core 5G: SOLO el UPF, en su propio release y namespace.
+#
+#   release:   open5gs-up
+#   namespace: 5g-up          (zona de confianza del plano de usuario)
+#   nodo:      node-worker2   (sitio de borde, junto al gNB)
+#
+# Es el MISMO chart de Gradiant y la MISMA versión que el plano de control
+# (ansible/group_vars/all.yml), instalado por segunda vez con todo apagado
+# salvo el UPF. Así no se añade ninguna dependencia nueva y las dos mitades del
+# core quedan siempre en la misma versión de Open5GS.
+#
+# Por qué separado (arquitectura v3, ver docs/arquitectura-v3-planos.md):
+#   · 3GPP separa control y usuario (CUPS): el SMF gobierna al UPF por N4 (PFCP)
+#     y cada uno escala y se ubica por su cuenta.
+#   · Los operadores ponen el UPF en el borde, cerca de la radio y de la salida
+#     a internet, y el control en el sitio central.
+#   · El UPF es la única función que toca tráfico de suscriptores. Con su propio
+#     namespace, la zona de control (5g-cp) puede negar TODO lo que venga del
+#     plano de usuario, y el UPF solo acepta N3 del gNB y N4 del SMF.
+#
+# Nombres que resultan (los usan las políticas y el SMF):
+#   Deployment  open5gs-up-upf
+#   Service N4  open5gs-up-upf-pfcp.5g-up.svc.cluster.local   (UDP 8805)
+#   Service N3  open5gs-up-upf-gtpu.5g-up.svc.cluster.local   (UDP 2152)
+#   Label       app.kubernetes.io/name=upf
+#
+# ⚠ Si cambias el nombre del release, cambia también smf.config.upf.pfcp.hostname
+#   en open5gs-values.yaml.
+
+networkPolicy:
+  enabled: false
+
+# ── Todo apagado salvo el UPF ───────────────────────────────────────────────
+populate:
+  enabled: false
+mongodb:
+  enabled: false
+webui:
+  enabled: false
+
+# 4G/EPC
+hss:
+  enabled: false
+mme:
+  enabled: false
+pcrf:
+  enabled: false
+sgwc:
+  enabled: false
+sgwu:
+  enabled: false
+
+# 5G plano de control (vive en el release open5gs-cp, namespace 5g-cp)
+amf:
+  enabled: false
+ausf:
+  enabled: false
+bsf:
+  enabled: false
+nrf:
+  enabled: false
+nssf:
+  enabled: false
+pcf:
+  enabled: false
+scp:
+  enabled: false
+sepp:
+  enabled: false
+smf:
+  enabled: false
+udm:
+  enabled: false
+udr:
+  enabled: false
+
+# ── UPF ─────────────────────────────────────────────────────────────────────
+upf:
+  enabled: true
+  replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker2 }
+  config:
+    # N6: pool de IPs de los UE y NAT de salida. Debe coincidir con
+    # smf.config.subnetList (por defecto del chart: 10.45.0.0/16, dnn internet).
+    subnetList:
+      - subnet: 10.45.0.0/16
+        gateway: 10.45.0.1
+        dnn: internet
+        dev: ogstun
+        mask: 16
+        createDev: true
+        enableNAT: true

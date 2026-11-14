@@ -9,7 +9,13 @@
 # ─── HARDENING Perfil A (arquitectura v2) ───────────────────────────────────
 # COLOCACIÓN POR PLANO (hallazgo 5): como un operador reparte sus sitios,
 #   · worker1 = SITIO CENTRAL → plano de control 5G (NRF, AMF, SMF, ...) + MongoDB
-#   · worker2 = SITIO DE BORDE → UPF (plano de usuario)
+#   · worker2 = SITIO DE BORDE → UPF (plano de usuario), en SU PROPIO release y
+#     namespace (5g-up). Ver helm-values/open5gs-upf-values.yaml.
+# SEPARACIÓN DE PLANOS (arquitectura v3): este release (open5gs-cp, ns 5g-cp)
+# YA NO despliega el UPF. El UPF es un segundo release del mismo chart
+# (open5gs-up, ns 5g-up), con su propio ciclo de vida, como hacen los operadores
+# (control en el sitio central, usuario en el borde). El SMF lo alcanza por N4
+# cruzando de namespace y de nodo.
 # Así N2 (gNB→AMF) y N4 (SMF→UPF) cruzan SIEMPRE de nodo y cada ataque nacido en
 # el borde recorre el camino difícil para el defensor. El gNB, el UE y los pods
 # de ataque se fijan a worker2 en sus propios manifiestos.
@@ -88,6 +94,22 @@ amf:
 smf:
   replicaCount: 1
   nodeSelector: { kubernetes.io/hostname: node-worker1 }
+  # Fuerza UN reinicio del SMF cuando cambia su par N4 (el ConfigMap solo no
+  # reinicia el pod). Cambia el valor si vuelves a mover el UPF.
+  podAnnotations:
+    cib46.io/n4-peer: "open5gs-up-upf-pfcp.5g-up"
+  config:
+    # N4 (PFCP, UDP 8805): el UPF vive en otro release y otro namespace.
+    # Sin esto el SMF busca '<release>-upf-pfcp' en 5g-cp, que ya no existe.
+    upf:
+      pfcp:
+        hostname: "open5gs-up-upf-pfcp.5g-up.svc.cluster.local"
+    # Core 5G SA puro: el SMF habla con el PCF por SBI, no con un PCRF (4G) por
+    # Diameter. Con pcrf.enabled=true (valor por defecto del subchart) el SMF
+    # intenta resolver '<release>-pcrf-frdi', que no existe porque el PCRF está
+    # apagado, y aborta al arrancar (freeDiameter: Name or service not known).
+    pcrf:
+      enabled: false
 
 nssf:
   replicaCount: 1
@@ -122,12 +144,14 @@ scp:
   replicaCount: 1
   nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
-# ─── Plano de USUARIO → worker2 (sitio de borde) ───────────────────────────
-# El UPF es el elemento más expuesto (toca tráfico de suscriptor). En el borde,
-# N4 viaja por la red de transporte hasta el core (cruza de nodo).
+# ─── Plano de USUARIO → FUERA de este release ──────────────────────────────
+# El UPF es el elemento más expuesto (toca tráfico de suscriptor y sale a
+# internet por N6). Vive en su propia zona de confianza: release 'open5gs-up',
+# namespace 5g-up, nodo de borde (worker2). N4 cruza de namespace y de nodo.
 upf:
-  replicaCount: 1
-  nodeSelector: { kubernetes.io/hostname: node-worker2 }
+  # Arquitectura v3: el UPF NO se despliega con el plano de control.
+  # Va en el release 'open5gs-up' (namespace 5g-up, nodo de borde).
+  enabled: false
 
 # WebUI apagada (hallazgo 8).
 webui:

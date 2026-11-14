@@ -63,14 +63,10 @@ spec:
                 path: "/nnrf-nfm/v1/subscriptions/.*"
     # Regla 2: NF consumidoras (core-nf, no SCP) -- solo discovery
     - fromEndpoints:
-        # Hardening (hallazgo 1): el UPF no es origen de la SBI.
+        # Arquitectura v3: el UPF vive en 5g-up; no hace falta excluirlo.
         - matchLabels:
             io.kubernetes.pod.namespace: 5g-cp
             cib46-nf-type: core-nf
-          matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: NotIn
-              values: [upf]
       toPorts:
         - ports:
             - port: "7777"
