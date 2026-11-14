@@ -44,6 +44,10 @@ condition: ## Transición declarativa con Kustomize (uso: make condition C=c1)
 smoke: ## Prueba de humo del plano de control (uso: make smoke C=C1)
 	bash bootstrap/checks/smoke-control-plane.sh $(C)
 
+.PHONY: policy-matrix
+policy-matrix: ## Matriz de flujos por condición, sin clúster (aproximación L3/L4)
+	python3 bootstrap/checks/policy-matrix.py .
+
 # ---- Análisis (RM-03/07: efecto congruente + ómnibus/post-hoc) -------------
 .PHONY: analyze-latency
 analyze-latency: ## Ómnibus + post-hoc de latencia (uso: make analyze-latency CSV=archivo.csv)

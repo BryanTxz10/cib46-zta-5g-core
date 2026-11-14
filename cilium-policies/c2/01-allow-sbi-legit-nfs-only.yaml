@@ -31,15 +31,10 @@ spec:
       app.kubernetes.io/name: nrf
   ingress:
     - fromEndpoints:
-        # Hardening (hallazgo 1): excluir al UPF como origen de la SBI aunque
-        # llevara el label de identidad.
+        # Arquitectura v3: el UPF vive en 5g-up; no hace falta excluirlo.
         - matchLabels:
             io.kubernetes.pod.namespace: 5g-cp
             cib46-nf-type: core-nf
-          matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: NotIn
-              values: [upf]
       toPorts:
         - ports:
             - port: "7777"

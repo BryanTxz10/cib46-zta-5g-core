@@ -1,0 +1,27 @@
+# 03-egress-smf-n4.yaml
+# Arquitectura v3 — N4 (PFCP) entre zonas: del plano de control al de usuario.
+#
+# egress-cp-baseline deja a las NF de 5g-cp hablar solo dentro de su zona y con
+# el DNS. Esta política AÑADE una única salida entre zonas, y solo para el SMF:
+# PFCP (UDP 8805) hacia el UPF de 5g-up. Es la única NF del plano de control
+# que tiene un motivo para hablar con el plano de usuario.
+#
+# En un operador esto es la red N4 entre el sitio central y el borde. Aquí es
+# una regla por identidad: origen = SMF, destino = UPF, puerto = 8805.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress-smf-n4
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: smf
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-up
+            app.kubernetes.io/name: upf
+      toPorts:
+        - ports:
+            - { port: "8805", protocol: UDP }

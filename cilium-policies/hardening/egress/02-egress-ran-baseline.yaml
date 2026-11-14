@@ -10,10 +10,11 @@
 # Todo lo demás queda DENEGADO desde el segmento de acceso: internet, API
 # server, y la SBI del core. El atacante de 5g-ran ya no puede barrer el plano
 # de control ni exfiltrar: su intento a la SBI (A1/A2) muere en el egress,
-# además del ingress deny-ran-to-cp del lado 5g-cp.
+# además del default-deny de ingress del lado 5g-cp.
 #
-# Nota: la entrada N2/N3 llega a destino solo si el INGRESS del lado 5g-cp lo
-# admite (allow-gnb-to-amf-n2 para N2; allow-upf-n3-n4 para N3): por eso el
+# Nota: la entrada N2/N3 llega a destino solo si el INGRESS del otro lado lo
+# admite (allow-gnb-to-amf-n2 en 5g-cp para N2; allow-upf-n3-n4 en 5g-up para
+# N3): por eso el
 # atacante, aunque pueda intentar el egress a amf:38412/upf:2152, es rechazado
 # en el ingress porque no lleva el label del gNB.
 apiVersion: cilium.io/v2
@@ -36,10 +37,10 @@ spec:
       toPorts:
         - ports:
             - { port: "38412", protocol: SCTP }
-    # N3: gNB -> UPF.
+    # N3: gNB -> UPF (plano de usuario, namespace 5g-up).
     - toEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: 5g-cp
+            io.kubernetes.pod.namespace: 5g-up
             app.kubernetes.io/name: upf
       toPorts:
         - ports:

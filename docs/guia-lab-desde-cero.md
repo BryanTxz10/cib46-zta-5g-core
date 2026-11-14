@@ -45,13 +45,17 @@
    ┌────────────────────────┬────────────────────────┬────────────────────────┐
    │ node-master  .10       │ node-worker1  .11      │ node-worker2  .12      │
    │ k3s server + Cilium    │ k3s agent + Cilium     │ k3s agent + Cilium     │
-   │ Ansible, kubectl, helm │ pods del core / RAN    │ pods del core / RAN    │
+   │ Ansible, kubectl, helm │ SITIO CENTRAL          │ SITIO DE BORDE         │
+   │ solo control de K8s    │ plano de control 5G    │ UPF, gNB, UE, atacantes│
    └────────────────────────┴────────────────────────┴────────────────────────┘
 
    Pods (red de Cilium 10.42.0.0/16, túnel VXLAN entre nodos)
-     5g-cp        : nrf scp amf smf upf ausf udm udr pcf bsf nssf mongodb webui populate
-     5g-ran       : ueransim-gnb  ueransim-ues   (más adelante, los pods atacantes)
-     cilium-spire : spire-server (1)  +  spire-agent (uno por nodo)
+     5g-cp  (worker1) : nrf scp amf smf ausf udm udr pcf bsf nssf mongodb populate
+     5g-up  (worker2) : upf   (release open5gs-up; ver docs/arquitectura-v3-planos.md)
+     5g-ran (worker2) : ueransim-gnb  ueransim-ues   (más adelante, los pods atacantes)
+     cilium-spire     : spire-server (1)  +  spire-agent (uno por nodo)
+
+   N4 (PFCP 8805)  SMF -> UPF  cruza de zona y de nodo (worker1 -> worker2).
 
    N2 (SCTP 38412)  gNB -> AMF   y   N3 (GTP-U 2152)  gNB -> UPF
    viajan pod a pod por Cilium, así las políticas C1 a C3 los ven.
@@ -647,9 +651,14 @@ Todavía no se aplica nada: SPIRE solo actúa cuando una política pide
 kubectl -n 5g-cp get pods -o wide
 ```
 
-Todos en `Running` (y `1/1`): `open5gs-cp-amf`, `-ausf`, `-bsf`, `-mongodb`,
-`-nrf`, `-nssf`, `-pcf`, `-populate`, `-scp`, `-smf`, `-udm`, `-udr`, `-upf`,
-`-webui`.
+Todos en `Running` (y `1/1`), en `node-worker1`: `open5gs-cp-amf`, `-ausf`,
+`-bsf`, `-mongodb`, `-nrf`, `-nssf`, `-pcf`, `-populate`, `-scp`, `-smf`, `-udm`,
+`-udr`. El UPF ya no está aquí: es el plano de usuario y vive en `5g-up`.
+
+```bash
+kubectl -n 5g-up get pods -o wide                              # open5gs-up-upf en node-worker2
+kubectl -n 5g-cp logs deploy/open5gs-cp-smf | grep -i pfcp     # asociación N4 con el UPF
+```
 
 ### 10.4 gNB conectado al AMF (N2)
 
@@ -937,7 +946,7 @@ make ran-restart      # reinicia gNB y luego UE (el gNB resuelve la IP del AMF a
 | gNB: SCTP no conecta / *NG Setup failure* | El AMF se reinició y cambió de IP | `make ran-restart` |
 | UE: *no cells in coverage* / *PLMN selection failure* | El UE no llega al gNB por RLS (UDP 4997) | Mira que el gNB corra y que `ueransim-gnb` resuelva: `kubectl -n 5g-ran exec $UE -- getent hosts ueransim-gnb.5g-ran.svc.cluster.local` |
 | UE: falla autenticación / *Registration reject* | Falta el suscriptor en MongoDB | `make subscribers` y luego `kubectl -n 5g-ran rollout restart deploy/ueransim-ues` |
-| `uesimtun0` existe pero el ping a 8.8.8.8 falla | NAT del UPF o salida a internet del nodo | `kubectl -n 5g-cp logs deploy/open5gs-cp-upf` y prueba internet desde el nodo |
+| `uesimtun0` existe pero el ping a 8.8.8.8 falla | NAT del UPF o salida a internet del nodo | `kubectl -n 5g-up logs deploy/open5gs-up-upf` y prueba internet desde el nodo |
 | `make smoke` da `sbi=000` | El curl desde el AMF no llega al NRF | `kubectl -n 5g-cp get svc | grep nrf-sbi` y revisa la condición aplicada |
 | `spire-server-0` en `Pending` | Su volumen (PVC) no se crea | `kubectl -n cilium-spire get pvc` y `kubectl -n kube-system get pods -l app=local-path-provisioner` (k3s trae ese provisionador; necesita Cilium arriba) |
 | `spire agent list` muestra menos de 3 agentes | Un `spire-agent` no se atestó | `kubectl -n cilium-spire logs ds/spire-agent` (o el pod de ese nodo) |

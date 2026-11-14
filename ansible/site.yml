@@ -13,7 +13,8 @@
 #   - k3s con --node-ip explícito (evita que tome otra NIC).
 #   - Cilium con pool de pods 10.42.0.0/16 y CLIs cilium/hubble en el master.
 #   - Open5GS desde el chart OCI de Gradiant (towards5gs no tiene chart de
-#     Open5GS), release "open5gs-cp", suscriptor vía populate del chart.
+#     Open5GS) en DOS releases: "open5gs-up" (UPF, ns 5g-up) y "open5gs-cp"
+#     (plano de control, ns 5g-cp). Suscriptor vía populate del chart.
 #   - N2 por la red de pods de Cilium (Multus opcional y apagado): así las
 #     políticas C1-C3 ven el tráfico N2. El gNB llega al AMF por un Service
 #     headless (Cilium 1.15 no soporta SCTP sobre VIP con KPR).
@@ -368,26 +369,91 @@
     - name: "Permitir kubelet-insecure-tls en metrics-server (testbed)"
       ansible.builtin.command: >
         kubectl -n kube-system patch deployment metrics-server --type=json
-        -p=[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]
+        -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
       when: "'kubelet-insecure-tls' not in ms_args.stdout"
       changed_when: true
       tags: [metrics]
 
     # ---------- Open5GS (chart OCI de Gradiant) ----------
+    # Arquitectura v3: el core se despliega en DOS releases del mismo chart.
+    #   1) open5gs-up (ns 5g-up, borde)   -> solo el UPF (plano de usuario)
+    #   2) open5gs-cp (ns 5g-cp, central) -> plano de control + MongoDB
+    # El UPF va PRIMERO: el SMF resuelve por DNS el Service N4 del UPF al
+    # arrancar y aborta si no existe.
     - name: "Copiar values de Open5GS al master"
       ansible.builtin.copy:
-        src: "{{ repo_root }}/helm-values/open5gs-values.yaml"
-        dest: "{{ work_dir }}/open5gs-values.yaml"
+        src: "{{ repo_root }}/helm-values/{{ item }}"
+        dest: "{{ work_dir }}/{{ item }}"
         mode: "0644"
+      loop:
+        - open5gs-values.yaml
+        - open5gs-upf-values.yaml
       tags: [open5gs]
 
-    - name: "Desplegar Open5GS (espera a que todo esté listo, hasta 15 min)"
+    - name: "Anotar la IP actual del AMF (para saber si hay que reiniciar la RAN)"
+      ansible.builtin.shell: >
+        kubectl -n {{ ns_cp }} get pod -l app.kubernetes.io/name=amf
+        -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true
+      register: amf_ip_antes
+      changed_when: false
+      tags: [open5gs]
+
+    - name: "Desplegar el plano de usuario: UPF en {{ ns_up }} (release {{ open5gs_up_release }})"
+      ansible.builtin.command: >
+        helm upgrade --install {{ open5gs_up_release }} {{ open5gs_chart }}
+        --version {{ open5gs_chart_version }}
+        --namespace {{ ns_up }}
+        -f {{ work_dir }}/open5gs-upf-values.yaml
+        --wait --timeout 10m
+      changed_when: true
+      tags: [open5gs]
+
+    - name: "Desplegar el plano de control: Open5GS en {{ ns_cp }} (hasta 15 min)"
       ansible.builtin.command: >
         helm upgrade --install {{ open5gs_release }} {{ open5gs_chart }}
         --version {{ open5gs_chart_version }}
         --namespace {{ ns_cp }}
         -f {{ work_dir }}/open5gs-values.yaml
         --wait --timeout 15m
+      changed_when: true
+      tags: [open5gs]
+
+    - name: "Comprobar que el SMF apunta al UPF de {{ ns_up }} (N4)"
+      ansible.builtin.shell: >
+        kubectl -n {{ ns_cp }} get configmap {{ open5gs_release }}-smf -o yaml
+        | grep -c "{{ open5gs_up_release }}-upf-pfcp.{{ ns_up }}"
+      register: smf_n4
+      changed_when: false
+      failed_when: smf_n4.stdout | int < 1
+      tags: [open5gs]
+
+    - name: "Leer la IP del AMF tras el despliegue"
+      ansible.builtin.shell: >
+        kubectl -n {{ ns_cp }} get pod -l app.kubernetes.io/name=amf
+        -o jsonpath='{.items[0].status.podIP}'
+      register: amf_ip_despues
+      changed_when: false
+      tags: [open5gs]
+
+    - name: "¿Existe ya la RAN simulada?"
+      ansible.builtin.shell: >
+        kubectl -n {{ ns_ran }} get deployment ueransim-gnb -o name 2>/dev/null || true
+      register: ran_existe
+      changed_when: false
+      tags: [open5gs]
+
+    # El gNB resuelve la IP del AMF solo al arrancar. Si el AMF cambió de IP
+    # (p. ej. al moverse de nodo), hay que reiniciar gNB y luego UE.
+    - name: "Reiniciar gNB y UE si el AMF cambió de IP"
+      ansible.builtin.shell: |
+        kubectl -n {{ ns_ran }} rollout restart deployment ueransim-gnb
+        kubectl -n {{ ns_ran }} rollout status deployment ueransim-gnb --timeout=180s
+        kubectl -n {{ ns_ran }} rollout restart deployment ueransim-ues
+        kubectl -n {{ ns_ran }} rollout status deployment ueransim-ues --timeout=180s
+      when:
+        - ran_existe.stdout | length > 0
+        - amf_ip_antes.stdout | length > 0
+        - amf_ip_antes.stdout != amf_ip_despues.stdout
       changed_when: true
       tags: [open5gs]
 

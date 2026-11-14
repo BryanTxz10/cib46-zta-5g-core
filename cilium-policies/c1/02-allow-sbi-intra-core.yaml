@@ -18,14 +18,10 @@ spec:
   endpointSelector: {}
   ingress:
     - fromEndpoints:
-        # Hardening (hallazgo 1): el UPF NO es origen válido de la SBI
-        # (no habla 7777; su único plano es N4/N6). Se excluye explícitamente.
+        # Solo pods de la zona de control. Arquitectura v3: el UPF vive en
+        # 5g-up, así que el plano de usuario queda fuera sin excepciones.
         - matchLabels:
             io.kubernetes.pod.namespace: 5g-cp
-          matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: NotIn
-              values: [upf]
       toPorts:
         - ports:
             - port: "7777"

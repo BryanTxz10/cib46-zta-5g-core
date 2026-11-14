@@ -1,0 +1,36 @@
+# 03-allow-sbi-core-nf.yaml
+# Condiciones C2 y C3 — SBI entre NF del core, con identidad.
+#
+# allow-sbi-legit-nfs-only (C2) y allow-sbi-rbac-c3 (C3) solo cubren el destino
+# NRF. Como la zona 5g-cp está en default-deny, el resto de la SBI (AMF -> SCP,
+# SCP -> AUSF/UDM/SMF/PCF, notificaciones del NRF a las NF...) se quedaba sin
+# permiso al salir de C1: el attach solo sobrevivía por conexiones ya abiertas
+# y se rompía tras un reinicio limpio.
+#
+# Esta política cubre ese hueco con el MISMO criterio de C2: para hablar SBI
+# con cualquier NF hay que ser una NF con identidad (cib46-nf-type=core-nf).
+# El impostor de A2' (en 5g-cp pero sin el label) queda fuera de TODA la SBI,
+# no solo del NRF: tampoco puede pedirle datos de suscriptor al UDM.
+#
+# El NRF queda fuera del selector a propósito: su entrada la gobiernan las
+# reglas L7 de c2/01 (C2) o c3/01 (C3).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-sbi-core-nf
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [nrf]
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            cib46-nf-type: core-nf
+      toPorts:
+        - ports:
+            - port: "7777"
+              protocol: TCP

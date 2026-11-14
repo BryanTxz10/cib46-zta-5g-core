@@ -13,7 +13,9 @@
 set -euo pipefail
 
 NAMESPACE="5g-cp"
-NFS=(amf smf nrf udm udr ausf pcf scp bsf)
+# NSSF incluida: también es una NF legítima con SBI (el AMF la consulta para
+# la selección de slice). Sin el label, en C2/C3 no podría registrarse.
+NFS=(amf smf nrf udm udr ausf pcf scp bsf nssf)
 
 for nf in "${NFS[@]}"; do
   kubectl patch deployment "open5gs-cp-${nf}" -n "$NAMESPACE" \

@@ -4,14 +4,16 @@
 # Default-deny de EGRESS para TODAS las NF del namespace 5g-cp. Al existir una
 # política de egress que las selecciona, Cilium pasa a denegar por defecto todo
 # el egress de 5g-cp y solo deja lo que esta lista permite:
-#   - Tráfico DENTRO de la zona de confianza 5g-cp (SBI 7777, N4 SMF->UPF,
-#     acceso de UDR/PCF/BSF a MongoDB): es intra-zona, se permite.
+#   - Tráfico DENTRO de la zona de confianza 5g-cp (SBI 7777, acceso de
+#     UDR/PCF a MongoDB): es intra-zona, se permite.
 #   - DNS del clúster (kube-dns).
 # Todo lo demás queda DENEGADO: salida a internet (world), al API server de
 # Kubernetes (kube-apiserver), a kube-system, a cilium-spire y a otros
 # namespaces. Un pod de control comprometido ya no puede exfiltrar ni hablar
-# con el API server.  El UPF añade su propia salida a world (N6) en
-# 01-egress-upf-n6.yaml; ninguna otra NF la tiene.
+# con el API server.
+# Arquitectura v3: el UPF ya no vive aquí. Ninguna NF de 5g-cp sale a internet
+# (N6 es del plano de usuario, 5g-up) y la única salida entre zonas es N4 del
+# SMF hacia el UPF, en 03-egress-smf-n4.yaml.
 #
 # VALIDAR con `make smoke`: si una NF legítima necesitara salir fuera de la zona
 # (no debería), el attach fallaría; añade aquí el flujo concreto, nunca world.
@@ -23,7 +25,7 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-    # Intra-zona 5g-cp (SBI, N4, MongoDB): dentro del dominio de confianza.
+    # Intra-zona 5g-cp (SBI, MongoDB): dentro del dominio de confianza.
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: 5g-cp

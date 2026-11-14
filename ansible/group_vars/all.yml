@@ -29,6 +29,11 @@ open5gs_chart_version: "2.3.4"
 # (open5gs-cp-amf, open5gs-cp-nrf-sbi...). Lo usan gnb.yaml, los checks y los
 # scripts de C2. No lo cambies.
 open5gs_release: "open5gs-cp"
+# Plano de usuario (arquitectura v3): el UPF es un segundo release del mismo
+# chart, en el namespace 5g-up. De este nombre salen los Services
+# open5gs-up-upf-pfcp (N4) y open5gs-up-upf-gtpu (N3). Si lo cambias, cambia
+# también smf.config.upf.pfcp.hostname en helm-values/open5gs-values.yaml.
+open5gs_up_release: "open5gs-up"
 
 # --- Identidad: SPIRE integrado en Cilium (mutual authentication, beta) ---
 # Cilium instala SPIRE (namespace cilium-spire), el operador registra una
