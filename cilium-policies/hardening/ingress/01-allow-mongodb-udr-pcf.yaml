@@ -1,0 +1,33 @@
+# 01-allow-mongodb-udr-pcf.yaml
+# HARDENING Perfil A — Hallazgo 7 (MongoDB sin autenticación).
+#
+# REEMPLAZA a c1/04-deny-ran-to-mongodb.yaml (que admitía a TODO 5g-cp).
+# Restringe el ingress a MongoDB (27017) a SOLO las NF que realmente usan la
+# base de suscriptores en Open5GS: UDR (datos de suscriptor), PCF y BSF
+# (políticas y binding). Un pod impostor o comprometido de 5g-cp, aunque tenga
+# el label de identidad, ya no alcanza la bóveda de claves K/OPc.
+#
+# Como es un ingress sobre el endpoint mongodb, Cilium pasa a denegar por
+# defecto todo lo demás hacia MongoDB (incluido 5g-ran, que antes cubría c1/04).
+#
+# APLICAR DESPUÉS del populate: el Deployment <release>-populate inserta el
+# suscriptor al instalar, antes de aplicar condiciones, así que no necesita
+# acceso continuo. VALIDAR con `make smoke`: si una NF legítima no llega a la
+# base (p. ej. tu versión del chart usa otro nombre), añade su label aquí.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-mongodb-udr-pcf
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+  ingress:
+    - fromEndpoints:
+        - matchLabels: { app.kubernetes.io/name: udr }
+        - matchLabels: { app.kubernetes.io/name: pcf }
+        - matchLabels: { app.kubernetes.io/name: bsf }
+      toPorts:
+        - ports:
+            - { port: "27017", protocol: TCP }

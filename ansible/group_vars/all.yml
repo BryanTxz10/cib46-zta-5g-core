@@ -40,6 +40,12 @@ deploy_spire: true
 spire_trust_domain: "cib46.5gcore.local"   # el mismo trust domain de la tesis
 spire_version: "1.8.5"                     # informativo: lo fija el chart de Cilium 1.15.4
 
+# --- Hardening Perfil A (arquitectura v2) ---
+# Cifrado transparente WireGuard entre nodos (hallazgo 6). APAGADO por defecto:
+# es una CONDICIÓN APARTE que vuelve a medir la latencia. Actívalo con true o,
+# en la ruta bash, con DEPLOY_ENCRYPTION=1 (bootstrap/20-cilium.sh).
+node_encryption: false
+
 # --- RAN simulada ---
 ueransim_version: "v3.2.6"
 

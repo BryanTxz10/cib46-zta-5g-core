@@ -1,0 +1,38 @@
+# 02-allow-upf-n3-n4.yaml
+# HARDENING Perfil A — Hallazgo 4 (N3 sin regla) + separación de planos.
+#
+# Default-deny de INGRESS sobre el UPF: solo se admite
+#   - N3 (GTP-U, UDP 2152) desde el gNB de 5g-ran.
+#   - N4 (PFCP, UDP 8805) desde el SMF de 5g-cp.
+# Así el UPF deja de aceptar tráfico de cualquier origen: el atacante de 5g-ran
+# no puede inyectar GTP-U al UPF (no lleva el label del gNB) y ningún otro pod
+# puede hablar PFCP con él.
+#
+# Es coherente con un UPF de borde (worker2): N3 cruza de nodo desde el gNB y
+# N4 viaja desde el SMF del sitio central.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-upf-n3-n4
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: upf
+  ingress:
+    # N3: GTP-U desde el gNB.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-ran
+            app.kubernetes.io/name: ueransim-gnb
+      toPorts:
+        - ports:
+            - { port: "2152", protocol: UDP }
+    # N4: PFCP desde el SMF.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            app.kubernetes.io/name: smf
+      toPorts:
+        - ports:
+            - { port: "8805", protocol: UDP }

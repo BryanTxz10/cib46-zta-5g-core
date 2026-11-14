@@ -1,0 +1,38 @@
+# 01-egress-upf-n6.yaml
+# HARDENING Perfil A — Hallazgo 1 (N6 colapsado).
+#
+# El UPF es la única NF de 5g-cp autorizada a salir del clúster (N6, el tráfico
+# de los suscriptores hacia internet). Esta política AÑADE (unión con
+# egress-cp-baseline) la salida a `world` y el N3 de bajada hacia el gNB.
+# Como egress-cp-baseline deniega `world` para el resto, SOLO el UPF puede salir.
+#
+# Con esto, el tráfico de un suscriptor que sale enmascarado por el UPF (N6) ya
+# NO puede alcanzar la SBI del core ni ningún servicio del clúster: `world` es
+# todo lo externo; pods, nodos y API server quedan fuera de esa entidad.
+# Hubble muestra el drop de un UE que intente llegar a la SBI por la puerta N6.
+#
+# NOTA (hallazgo 1): confirma antes `helm show values <chart> | grep -i enableNAT`
+# y una prueba desde el UE por uesimtun0 hacia el Service del NRF. Esta política
+# es el control compensatorio independientemente del resultado.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress-upf-n6
+  namespace: 5g-cp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: upf
+  egress:
+    # N3 de bajada: UPF -> gNB (GTP-U).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-ran
+            app.kubernetes.io/name: ueransim-gnb
+      toPorts:
+        - ports:
+            - { port: "2152", protocol: UDP }
+    # N6: salida de los suscriptores a internet. 'world' = todo lo externo al
+    # clúster; NO incluye pods, nodos ni el API server.
+    - toEntities:
+        - world

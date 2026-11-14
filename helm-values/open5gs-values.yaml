@@ -6,23 +6,32 @@
 # chart de Gradiant.
 # PLMN de prueba: MCC 999 / MNC 70 (rango reservado para testbeds 3GPP).
 #
-# NOTA: las politicas de red nativas del chart (networkPolicy.enabled)
-# se mantienen deshabilitadas de forma deliberada en todas las
-# condiciones; el enforcement de segmentacion, identidad y autorizacion
-# se implementa integramente mediante CiliumNetworkPolicy (ver
-# ../cilium-policies/), no mediante el mecanismo nativo de Kubernetes
-# NetworkPolicy que expone el chart.
+# ─── HARDENING Perfil A (arquitectura v2) ───────────────────────────────────
+# COLOCACIÓN POR PLANO (hallazgo 5): como un operador reparte sus sitios,
+#   · worker1 = SITIO CENTRAL → plano de control 5G (NRF, AMF, SMF, ...) + MongoDB
+#   · worker2 = SITIO DE BORDE → UPF (plano de usuario)
+# Así N2 (gNB→AMF) y N4 (SMF→UPF) cruzan SIEMPRE de nodo y cada ataque nacido en
+# el borde recorre el camino difícil para el defensor. El gNB, el UE y los pods
+# de ataque se fijan a worker2 en sus propios manifiestos.
+#   ⚠ AJUSTA 'node-worker1'/'node-worker2' al hostname real de tus nodos (los de
+#     ansible/inventory/hosts.ini). Si worker1 se queda sin RAM, súbelo a 5 GB y
+#     baja worker2 a 3 GB antes que mezclar planos.
+# WEBUI apagada (hallazgo 8): el suscriptor lo inserta 'populate'; la WebUI es una
+#   consola de administración con escritura a la base y no hace falta.
+# ────────────────────────────────────────────────────────────────────────────
 
+# networkPolicy nativa del chart deshabilitada a propósito: el enforcement de
+# segmentación, identidad, autorización y EGRESS se hace con CiliumNetworkPolicy
+# (ver ../cilium-policies/), no con el NetworkPolicy nativo de Kubernetes.
 networkPolicy:
   enabled: false
 
 # Suscriptor de prueba. Lo inserta el Deployment "<release>-populate" del
-# chart al arrancar (reemplaza a insert-subscribers.sh, que usaba el shell
-# 'mongo' legado, ausente en las imágenes MongoDB actuales).
-# Formato: add_ue_with_slice <IMSI> <K> <OPc> <DNN> <SST> <SD>
+# chart al arrancar. Formato: add_ue_with_slice <IMSI> <K> <OPc> <DNN> <SST> <SD>
 # Deben coincidir con ueransim-config/ue.yaml.
 populate:
   enabled: true
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
   initCommands:
     - open5gs-dbctl add_ue_with_slice 999700000000001 465B5CE8B199B49FAA5F0A2EE238A6BC E8ED289DEBA952E4283B54E88E6183CA internet 1 111111
 
@@ -44,14 +53,17 @@ sgwu:
 sepp:
   enabled: false
 
+# ─── Plano de control 5G → worker1 (sitio central) ─────────────────────────
 nrf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
   service:
     type: ClusterIP
     port: 7777
 
 amf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
   config:
     guamiList:
       - plmn_id:
@@ -75,9 +87,11 @@ amf:
 
 smf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
 nssf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
   config:
     nsiList:
       - uri: ""
@@ -86,31 +100,42 @@ nssf:
 
 pcf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
 udm:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
 udr:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
 ausf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
 bsf:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
 scp:
   replicaCount: 1
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
 
-webui:
+# ─── Plano de USUARIO → worker2 (sitio de borde) ───────────────────────────
+# El UPF es el elemento más expuesto (toca tráfico de suscriptor). En el borde,
+# N4 viaja por la red de transporte hasta el core (cruza de nodo).
+upf:
   replicaCount: 1
-  ingress:
-    enabled: false
+  nodeSelector: { kubernetes.io/hostname: node-worker2 }
+
+# WebUI apagada (hallazgo 8).
+webui:
+  enabled: false
 
 mongodb:
-  # Volumen emptyDir en el testbed: los datos de suscriptores se
-  # pierden ante cada reinicio del pod y deben reinsertarse. Limitacion
-  # conocida y documentada, sin impacto en las metricas de seguridad
-  # evaluadas.
+  nodeSelector: { kubernetes.io/hostname: node-worker1 }
+  # Volumen emptyDir en el testbed: los datos de suscriptores se pierden ante
+  # cada reinicio del pod y los reinserta 'populate'. Limitación documentada.
   persistence:
     enabled: false

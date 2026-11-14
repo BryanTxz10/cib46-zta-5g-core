@@ -72,3 +72,41 @@ spec:
                   - "system:serviceaccount:kube-system:daemon-set-controller"
                   - "system:serviceaccount:kube-system:job-controller"
                   - "system:serviceaccount:kube-system:generic-garbage-collector"
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Perfil A (hallazgo 4): el label del gNB legítimo también es NO FORJABLE.
+    # La política N2 (c1/03) confía en app.kubernetes.io/name=ueransim-gnb; sin
+    # esta guarda, cualquier pod de 5g-ran podría ponerse ese label y abrir N2
+    # al AMF. Aquí se rechaza en admisión a quien intente forjarlo.
+    # ───────────────────────────────────────────────────────────────────────
+    - name: solo-desplegador-autorizado-pone-label-gnb
+      match:
+        any:
+          - resources:
+              kinds: [Pod, Deployment, ReplicaSet, StatefulSet, DaemonSet, Job]
+              namespaces: [5g-ran]
+      preconditions:
+        all:
+          - key: "{{ request.object.metadata.labels.\"app.kubernetes.io/name\" || request.object.spec.template.metadata.labels.\"app.kubernetes.io/name\" || '' }}"
+            operator: Equals
+            value: ueransim-gnb
+      validate:
+        message: >-
+          El label 'app.kubernetes.io/name=ueransim-gnb' está reservado para la
+          estación base legítima: solo el desplegador autorizado puede asignarlo
+          en 5g-ran. Un pod que intente suplantar al gNB es rechazado en admisión.
+        deny:
+          conditions:
+            all:
+              - key: "{{ request.userInfo.username }}"
+                operator: AllNotIn
+                value:
+                  # --- AJUSTA: desplegador(es) legítimo(s) de UERANSIM ---
+                  - "system:serviceaccount:5g-ran:ueransim-deployer"
+                  # --- Controladores del sistema ---
+                  - "system:serviceaccount:kube-system:replicaset-controller"
+                  - "system:serviceaccount:kube-system:deployment-controller"
+                  - "system:serviceaccount:kube-system:statefulset-controller"
+                  - "system:serviceaccount:kube-system:daemon-set-controller"
+                  - "system:serviceaccount:kube-system:job-controller"
+                  - "system:serviceaccount:kube-system:generic-garbage-collector"

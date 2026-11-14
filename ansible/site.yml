@@ -212,6 +212,11 @@
         --set authentication.mutual.spire.install.enabled=true
         --set authentication.mutual.spire.trustDomain={{ spire_trust_domain }}
         {% endif %}
+        {% if node_encryption | default(false) | bool %}
+        --set encryption.enabled=true
+        --set encryption.type=wireguard
+        --set encryption.nodeEncryption=true
+        {% endif %}
       changed_when: true
       tags: [cilium, spire]
 

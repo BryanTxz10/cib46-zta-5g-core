@@ -1,0 +1,55 @@
+# hardening.yml — Endurecimiento del clúster (Perfil A, arquitectura v2).
+# Se ejecuta DESPUÉS de site.yml. Aplica los controles de hardening que no son
+# políticas de Cilium: Pod Security Standards por namespace, taint del master y
+# recordatorios de los flags que se activan en otros puntos.
+#
+# Uso (desde la carpeta ansible/):
+#   ansible-playbook hardening.yml -K
+#   ansible-playbook hardening.yml -K --tags pss      # solo Pod Security
+#   ansible-playbook hardening.yml -K --tags taint    # solo el taint del master
+---
+- name: "Hardening del clúster (Perfil A)"
+  hosts: master
+  become: true
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  tasks:
+    # ── Pod Security Standards por namespace (hallazgo 10) ──────────────────
+    # Modo warn+audit (NO enforce): surface de violaciones sin romper el attach.
+    # El gNB usa NET_ADMIN y el UE es privileged, así que 'enforce=baseline'
+    # rechazaría esos pods. Cuando muevas el UE a 5g-ue (privileged) podrás
+    # subir 5g-cp/5g-db a 'enforce=baseline'. Ver docs/arquitectura-v2-hardening.md.
+    - name: "PSS: avisar/auditar baseline en 5g-cp y 5g-ran"
+      ansible.builtin.command: >
+        kubectl label ns {{ item }}
+        pod-security.kubernetes.io/warn=baseline
+        pod-security.kubernetes.io/audit=baseline --overwrite
+      loop: ["{{ ns_cp }}", "{{ ns_ran }}"]
+      changed_when: false
+      tags: [pss]
+
+    - name: "PSS: enforce privileged en 5g-up (plano de usuario)"
+      ansible.builtin.command: >
+        kubectl label ns {{ ns_up }}
+        pod-security.kubernetes.io/enforce=privileged --overwrite
+      changed_when: false
+      tags: [pss]
+
+    # ── Taint del master (hallazgo 5): control-plane solo ───────────────────
+    # El master deja de aceptar cargas. Cilium (DaemonSet) tolera todo; CoreDNS,
+    # metrics-server y cilium-spire se reprograman a los workers. Aplícalo en un
+    # despliegue nuevo (en caliente, un pod ya colocado en el master no se mueve).
+    - name: "Taint NoSchedule en el nodo control-plane"
+      ansible.builtin.command: >
+        kubectl taint nodes -l node-role.kubernetes.io/control-plane
+        node-role.kubernetes.io/control-plane=:NoSchedule --overwrite
+      changed_when: false
+      tags: [taint]
+
+    - name: "Recordatorios de hardening (otros puntos)"
+      ansible.builtin.debug:
+        msg:
+          - "Cifrado WireGuard entre nodos: condición aparte -> DEPLOY_ENCRYPTION=1 (bootstrap/20-cilium.sh) o group_vars node_encryption."
+          - "Guarda de admisión (identidad NF + gNB): kubectl apply -f ../bootstrap/admission/kyverno-identity-guard.yaml (requiere Kyverno)."
+          - "Condiciones endurecidas: make condition C=c1 (incluye egress, N6, N3/N4, MongoDB restringido)."
+      tags: [pss, taint]
