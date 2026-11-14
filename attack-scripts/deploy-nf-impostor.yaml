@@ -17,9 +17,13 @@ metadata:
     app: nf-impostor
     # DELIBERADAMENTE sin cib46-nf-type: core-nf
 spec:
+  # Perfil A: impostor en el borde (worker2) para cruzar de nodo hacia el NRF
+  # (worker1); sin token de SA.
+  nodeSelector: { kubernetes.io/hostname: node-worker2 }
+  automountServiceAccountToken: false
   containers:
     - name: attacker
-      image: nicolaka/netshoot:latest
+      image: nicolaka/netshoot:v0.13
       imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c", "sleep infinity"]
       securityContext:

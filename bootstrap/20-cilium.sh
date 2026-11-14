@@ -21,8 +21,20 @@ if [ "${DEPLOY_SPIRE}" = "1" ]; then
               --set authentication.mutual.spire.trustDomain="${SPIRE_TRUST_DOMAIN}")
 fi
 
+# Cifrado transparente ENTRE NODOS con WireGuard (Perfil A, hallazgo 6).
+# Control compensatorio: cubre SBI, N2/N3/N4 y el overlay VXLAN sin tocar las NF.
+# APAGADO por defecto: es una CONDICIÓN APARTE (mide de nuevo la latencia). Se
+# activa con DEPLOY_ENCRYPTION=1.
+ENC_ARGS=()
+if [ "${DEPLOY_ENCRYPTION:-0}" = "1" ]; then
+  ENC_ARGS=(--set encryption.enabled=true
+            --set encryption.type=wireguard
+            --set encryption.nodeEncryption=true)
+  log "Cifrado WireGuard entre nodos: ACTIVADO (DEPLOY_ENCRYPTION=1)."
+fi
+
 log "Instalando/actualizando Cilium ${CILIUM_VERSION}..."
-helm upgrade --install cilium cilium/cilium "${SPIRE_ARGS[@]}" \
+helm upgrade --install cilium cilium/cilium "${SPIRE_ARGS[@]}" "${ENC_ARGS[@]}" \
   --version "${CILIUM_VERSION}" \
   --namespace kube-system \
   --set kubeProxyReplacement=true \

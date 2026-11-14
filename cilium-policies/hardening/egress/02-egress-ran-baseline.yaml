@@ -1,0 +1,55 @@
+# 02-egress-ran-baseline.yaml
+# HARDENING Perfil A — Hallazgo 2 (sin egress) + 4 (RAN sin fronteras).
+#
+# Default-deny de EGRESS para TODO el namespace 5g-ran (gNB y, mientras siga
+# aquí, el pod atacante de A1). Solo se permite:
+#   - Intra-RAN (RLS gNB<->UE, UDP 4997).
+#   - N2: gNB -> AMF (SCTP 38412).
+#   - N3: gNB -> UPF (GTP-U 2152).
+#   - DNS.
+# Todo lo demás queda DENEGADO desde el segmento de acceso: internet, API
+# server, y la SBI del core. El atacante de 5g-ran ya no puede barrer el plano
+# de control ni exfiltrar: su intento a la SBI (A1/A2) muere en el egress,
+# además del ingress deny-ran-to-cp del lado 5g-cp.
+#
+# Nota: la entrada N2/N3 llega a destino solo si el INGRESS del lado 5g-cp lo
+# admite (allow-gnb-to-amf-n2 para N2; allow-upf-n3-n4 para N3): por eso el
+# atacante, aunque pueda intentar el egress a amf:38412/upf:2152, es rechazado
+# en el ingress porque no lleva el label del gNB.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress-ran-baseline
+  namespace: 5g-ran
+spec:
+  endpointSelector: {}
+  egress:
+    # Intra-RAN (RLS radio simulada gNB<->UE).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-ran
+    # N2: gNB -> AMF.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            app.kubernetes.io/name: amf
+      toPorts:
+        - ports:
+            - { port: "38412", protocol: SCTP }
+    # N3: gNB -> UPF.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: 5g-cp
+            app.kubernetes.io/name: upf
+      toPorts:
+        - ports:
+            - { port: "2152", protocol: UDP }
+    # DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }

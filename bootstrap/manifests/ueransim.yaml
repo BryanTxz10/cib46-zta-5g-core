@@ -43,6 +43,9 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: ueransim-gnb }
     spec:
+      # Perfil A: gNB en el borde (worker2); sin token de SA (hallazgo 9).
+      nodeSelector: { kubernetes.io/hostname: node-worker2 }
+      automountServiceAccountToken: false
       containers:
         - name: gnb
           image: towards5gs/ueransim-gnb:v3.2.6   # pinnea por digest para el paper
@@ -81,6 +84,9 @@ spec:
     metadata:
       labels: { app.kubernetes.io/name: ueransim-ue }
     spec:
+      # Perfil A: UE en el borde (worker2); sin token de SA (hallazgo 9).
+      nodeSelector: { kubernetes.io/hostname: node-worker2 }
+      automountServiceAccountToken: false
       containers:
         - name: ue
           image: towards5gs/ueransim-ue:v3.2.6    # pinnea por digest para el paper

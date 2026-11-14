@@ -13,9 +13,13 @@ metadata:
   labels:
     app: attacker-ue-lateral
 spec:
+  # Perfil A: atacante en el borde (worker2) para cruzar de nodo hacia el core
+  # (worker1); sin token de SA.
+  nodeSelector: { kubernetes.io/hostname: node-worker2 }
+  automountServiceAccountToken: false
   containers:
     - name: attacker
-      image: nicolaka/netshoot:latest
+      image: nicolaka/netshoot:v0.13
       imagePullPolicy: IfNotPresent
       command: ["/bin/bash", "-c", "sleep infinity"]
       securityContext:

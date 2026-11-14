@@ -1,4 +1,13 @@
-# Condición C1 — microsegmentación L3/L4 (5 políticas).
+# Condición C1 — microsegmentación L3/L4, ENDURECIDA (Perfil A).
+#
+# Cambios vs v1 (ver docs/arquitectura-v2-hardening.md):
+#   + egress default-deny en 5g-cp y 5g-ran (hallazgo 2)
+#   + contención N6 del UPF (hallazgo 1)
+#   + ingress N3/N4 explícito sobre el UPF (hallazgo 4)
+#   + MongoDB solo desde UDR/PCF/BSF, reemplaza c1/04 (hallazgo 7)
+#   - se retira c1/05-ratelimit-n2-amf: era redundante y abría N2 a TODO 5g-ran;
+#     el origen de N2 queda restringido al gNB por c1/03 (hallazgo 4).
+#
 # Aplicar:
 #   kustomize build --load-restrictor=LoadRestrictionsNone \
 #     cilium-policies/conditions/c1 | kubectl apply -f -
@@ -7,8 +16,13 @@ kind: Kustomization
 commonLabels:
   cib46.io/managed: "true"
 resources:
+  # Ingress (L3/L4)
   - ../../c1/01-deny-ran-to-cp.yaml
   - ../../c1/02-allow-sbi-intra-core.yaml
   - ../../c1/03-allow-gnb-to-amf-n2.yaml
-  - ../../c1/04-deny-ran-to-mongodb.yaml
-  - ../../c1/05-ratelimit-n2-amf.yaml
+  - ../../hardening/ingress/01-allow-mongodb-udr-pcf.yaml
+  - ../../hardening/ingress/02-allow-upf-n3-n4.yaml
+  # Egress (hallazgo 2: zero trust en ambos sentidos)
+  - ../../hardening/egress/00-egress-cp-baseline.yaml
+  - ../../hardening/egress/01-egress-upf-n6.yaml
+  - ../../hardening/egress/02-egress-ran-baseline.yaml
